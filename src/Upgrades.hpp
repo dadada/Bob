@@ -2,17 +2,21 @@
 
 #ifndef Upgrade
 
-class Upgrade {
+class Upgrade
+{
     SDL_Color color;
 public:
     static Upgrade *Instance();
 
 private:
-    Upgrade() { };
+    Upgrade()
+    { };
 
-    Upgrade(Upgrade const &) { };
+    Upgrade(Upgrade const &)
+    { };
 
-    Upgrade &operator=(Upgrade const &) { };
+    Upgrade &operator=(Upgrade const &)
+    { };
     static Upgrade *m_pInstance;
 };
 

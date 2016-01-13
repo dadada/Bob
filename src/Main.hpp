@@ -3,13 +3,13 @@
 #include <SDL2/SDL.h>
 #include "GameMap.hpp"
 
-#ifndef DATA_PATH
-#endif
-#ifndef SCREEN_WIDTH
+#ifndef DEFAULTS
 const int SCREEN_WIDTH = 800;
-#endif
-#ifndef SCREEN_HEIGHT
 const int SCREEN_HEIGHT = 800;
+const SDL_Point CENTER = {SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2};
+const Layout LAYOUT = Layout(pointy_orientation, 20.0, CENTER);
+const Sint16 GRID_SIZE = 6;
+const SDL_Color COLOR = {0, 255, 255, 255};
 #endif
 
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
@@ -25,3 +25,24 @@ Uint32 amask = 0xff000000;
 #endif
 
 
+//template <class T>
+class Game
+{
+private:
+    SDL_Window *window;
+    SDL_Renderer *renderer;
+    HexagonGrid *grid;
+public:
+    Game(SDL_Window *window_, SDL_Renderer *renderer_)
+            : window(window_), renderer(renderer_)
+    {
+        this->grid = new HexagonGrid(GRID_SIZE, LAYOUT, COLOR);
+    }
+
+    ~Game()
+    {
+        delete this->grid;
+    }
+
+    int game_loop();
+};
