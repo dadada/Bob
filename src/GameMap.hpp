@@ -1,10 +1,31 @@
+#include <iostream>
+#include <stdexcept>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include <cmath>
 #include <vector>
 #include <assert.h>
 #include <unordered_set>
+#include <unordered_map>
 #include "Player.hpp"
+
+SDL_Point operator+(SDL_Point left, SDL_Point right);
+
+SDL_Point operator-(SDL_Point left, SDL_Point right);
+
+SDL_Point operator*(SDL_Point left, SDL_Point right);
+
+SDL_Point operator/(SDL_Point left, SDL_Point right);
+
+SDL_Point operator/(SDL_Point left, SDL_Point right);
+
+SDL_Point operator*(int left, SDL_Point right);
+
+SDL_Point operator*(SDL_Point left, int right);
+
+SDL_Point operator/(SDL_Point left, int right);
+
+int operator!(SDL_Point left);
 
 #ifndef Point
 
@@ -16,6 +37,24 @@ struct Point
     Point(double x_, double y_) : x(x_), y(y_)
     { }
 };
+
+Point operator+(Point left, Point right);
+
+Point operator-(Point left, Point right);
+
+Point operator*(Point left, Point right);
+
+Point operator/(Point left, Point right);
+
+Point operator*(double left, Point right);
+
+Point operator*(Point left, double right);
+
+Point operator/(double left, Point right);
+
+Point operator/(Point left, double right);
+
+double operator!(Point left);
 
 #endif
 
@@ -50,10 +89,10 @@ const Orientation flat_orientation = Orientation(3.0 / 2.0, 0.0, sqrt(3.0) / 2.0
 struct Layout
 {
     const Orientation orientation;
-    const double size;
-    const SDL_Point origin;
+    Uint16 size;
+    SDL_Point origin;
 
-    Layout(Orientation orientation_, double size_, SDL_Point origin_)
+    Layout(Orientation orientation_, Uint16 size_, SDL_Point origin_)
             : orientation(orientation_), size(size_), origin(origin_)
     { }
 };
@@ -64,7 +103,7 @@ struct Layout
 
 struct Field
 {
-    const Sint16 x, y, z;
+    Sint16 x, y, z;
 
     Field(Sint16 x_, Sint16 y_, Sint16 z_) : x(x_), y(y_), z(z_)
     {
@@ -116,9 +155,24 @@ Point field_to_point(const Field f, const Layout layout);
 
 Field point_to_field(Point point, const Layout layout);
 
-Point field_corner_offset(Uint8 corner, const Layout layout);
+Point field_corner_offset(int corner, const Layout layout);
 
 std::vector<Point> field_to_polygon(const Field field, const Layout layout);
+
+#ifndef FieldMeta
+
+class FieldMeta
+{
+private:
+    Player *owner;
+public:
+    FieldMeta(Player *owner_) : owner(owner_)
+    { }
+//    Player *get_owner();
+//    bool set_owner(Player *owner);
+};
+
+#endif
 
 #ifndef Grid
 
@@ -126,15 +180,34 @@ class Grid
 {
 protected:
     std::unordered_set<Field> fields;
-    SDL_Color color;
+    std::unordered_map<Field, FieldMeta *> fields_meta;
     Layout layout;
+    Field marker;
 public:
-    Grid(Layout layout_, SDL_Color color_) : layout(layout_), color(color_)
+    Grid(Layout layout_) : layout(layout_), marker(0, 0, 0)
     {
         this->fields = std::unordered_set<Field>();
+        this->fields_meta = std::unordered_map<Field, FieldMeta *>();
     };
 
+    ~Grid()
+    {
+        for (const Field &elem : this->fields)
+        {
+            delete this->fields_meta.at(elem);
+        }
+    }
+
+    void set_origin(SDL_Point origin);
+
+    void move(SDL_Point move);
+
+    void update_marker();
+
     virtual bool render(SDL_Renderer *renderer) = 0;
+
+    void handle_event(SDL_Event *event);
+
 };
 
 #endif
@@ -143,8 +216,10 @@ public:
 
 class HexagonGrid : public Grid
 {
+private:
+    Sint16 radius;
 public:
-    HexagonGrid(Sint16 grid_radius, Layout layout, SDL_Color color);
+    HexagonGrid(Sint16 grid_radius, Layout layout);
 
     bool render(SDL_Renderer *renderer);
 };

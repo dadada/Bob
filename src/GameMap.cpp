@@ -1,5 +1,91 @@
 #include "GameMap.hpp"
 
+SDL_Point operator+(SDL_Point left, SDL_Point right)
+{
+    return {left.x + right.x, left.y + right.y};
+}
+
+SDL_Point operator-(SDL_Point left, SDL_Point right)
+{
+    return {left.x - right.x, left.y - right.y};
+}
+
+SDL_Point operator*(SDL_Point left, SDL_Point right)
+{
+    return {left.x * right.x, left.y * right.y};
+}
+
+SDL_Point operator/(SDL_Point left, SDL_Point right)
+{
+    return {(left.x / right.x), (left.x / right.y)};
+}
+
+SDL_Point operator*(int left, SDL_Point right)
+{
+    return {left * right.x, left * right.y};
+}
+
+SDL_Point operator*(SDL_Point left, int right)
+{
+    return right * left;
+}
+
+SDL_Point operator/(SDL_Point left, int right)
+{
+    return {left.x / right, left.y / right};
+}
+
+int operator!(SDL_Point left)
+{
+    int length = (int) std::sqrt(left.x * left.x + left.y * left.y);
+    return length;
+}
+
+Point operator+(Point left, Point right)
+{
+    return Point(left.x + right.x, left.y + right.y);
+}
+
+Point operator-(Point left, Point right)
+{
+    return Point(left.x - right.x, left.y - right.y);
+}
+
+Point operator*(Point left, Point right)
+{
+    return Point(left.x * right.x, left.y * right.y);
+}
+
+Point operator/(Point left, Point right)
+{
+    return Point(left.x / right.x, left.y / right.y);
+}
+
+Point operator*(double left, Point right)
+{
+    return Point(left * right.x, left * right.y);
+}
+
+Point operator*(Point left, double right)
+{
+    return Point(left.x * right, left.y * right);
+}
+
+Point operator/(double left, Point right)
+{
+    return Point(left * right.x, left * right.y);
+}
+
+Point operator/(Point left, double right)
+{
+    return Point(left.x * right, left.y * right);
+}
+
+double operator!(Point left)
+{
+    return std::sqrt(left.x * left.x + left.y * left.y);
+}
+
 bool operator==(Field left, Field right)
 {
     return left.x == right.x && left.y == right.y;
@@ -32,9 +118,9 @@ Field operator/(Field left, Field right)
 
 Field cubic_round(double x, double y, double z)
 {
-    int8_t round_x = (int8_t) std::round(x);
-    int8_t round_y = (int8_t) std::round(y);
-    int8_t round_z = (int8_t) std::round(z);
+    Sint8 round_x = (Sint8) std::round(x);
+    Sint8 round_y = (Sint8) std::round(y);
+    Sint8 round_z = (Sint8) std::round(z);
     double x_err = std::abs(round_x - x);
     double y_err = std::abs(round_y - y);
     double z_err = std::abs(round_z - z);
@@ -103,8 +189,8 @@ std::vector<Point> field_to_polygon(const Field field, const Layout layout)
     return corners;
 }
 
-HexagonGrid::HexagonGrid(Sint16 grid_radius, Layout layout, SDL_Color color)
-        : Grid(layout, color)
+HexagonGrid::HexagonGrid(Sint16 grid_radius, Layout layout)
+        : Grid(layout)
 {
     // first lower half, then upper half
     for (Sint16 x = -grid_radius; x <= grid_radius; x++)
@@ -114,27 +200,95 @@ HexagonGrid::HexagonGrid(Sint16 grid_radius, Layout layout, SDL_Color color)
         for (Sint16 y = y_l; y <= y_u; y++)
         {
             Sint16 z = -x - y;
-            this->fields.insert({x, y, z});
+            Field new_field = {x, y, z};
+            FieldMeta *meta = new FieldMeta(nullptr);
+            this->fields.insert(new_field);
+            std::pair<Field, FieldMeta *> field_pair(new_field, meta);
+            this->fields_meta.insert(field_pair);
         }
     }
 }
 
 bool HexagonGrid::render(SDL_Renderer *renderer)
 {
+    Field some_field = {0, 0, 0};
+    std::vector<Point> polygon = field_to_polygon(some_field, this->layout);
+    Point center = field_to_point(some_field, this->layout);
+    assert(polygon.size() > 5);
+    Sint16 vx[6];
+    Sint16 vy[6];
+    for (uint8_t i = 0; i < 6; i++)
+    {
+        vx[i] = (Sint16) (polygon[i].x - center.x);
+        vy[i] = (Sint16) (polygon[i].y - center.y);
+    }
     for (const Field &elem : this->fields)
     {
-        std::vector<Point> polygon = field_to_polygon(elem, this->layout);
-        assert(polygon.size() > 5);
-        Sint16 vx[6];
-        Sint16 vy[6];
+        center = field_to_point(elem, this->layout);
+        Sint16 x[6];
+        Sint16 y[6];
         for (uint8_t i = 0; i < 6; i++)
         {
-            vx[i] = (Sint16) polygon[i].x;
-            vy[i] = (Sint16) polygon[i].y;
+            x[i] = vx[i] + (Sint16) center.x;
+            y[i] = vy[i] + (Sint16) center.y;
         }
-        const Sint16 x[6] = {vx[0], vx[1], vx[2], vx[3], vx[4], vx[5]};
-        const Sint16 y[6] = {vy[0], vy[1], vy[2], vy[3], vy[4], vy[5]};
-        aapolygonRGBA(renderer, x, y, 6, this->color.r, this->color.g, this->color.b, this->color.a);
+        polygonRGBA(renderer, x, y, 6, 0xff, 0xff, 0xff, 0xff);
+        if (elem == this->marker)
+        {
+            filledPolygonRGBA(renderer, x, y, 6, 0xff, 0x0, 0x0, 0xff);
+        }
     }
     return true;
+}
+
+void Grid::move(SDL_Point move)
+{
+    this->set_origin(this->layout.origin + move);
+}
+
+void Grid::handle_event(SDL_Event *event)
+{
+
+    if (event->type == SDL_MOUSEWHEEL)
+    {
+        SDL_Point mouse = {0, 0};
+        SDL_GetMouseState(&mouse.x, &mouse.y);
+        int scroll = event->wheel.y;
+        Uint16 old_size = this->layout.size;
+        SDL_Point old_origin = this->layout.origin;
+
+        if (old_size + scroll < 10)
+        {
+            this->layout.size = 10;
+        }
+        else if (old_size + scroll > 100)
+        {
+            this->layout.size = 100;
+        }
+        else
+        {
+            this->layout.size += scroll;
+            this->set_origin(old_origin + (10 * scroll * (old_origin - mouse) / !(old_origin - mouse)));
+        }
+    }
+    if (event->type == SDL_MOUSEMOTION)
+    {
+        this->update_marker();
+    }
+}
+
+void Grid::set_origin(SDL_Point dm)
+{
+    this->layout.origin = dm;
+    this->update_marker();
+}
+
+void Grid::update_marker()
+{
+    SDL_Point m;
+    SDL_GetMouseState(&(m.x), &(m.y));
+    Point p = {0.0, 0.0};
+    p.x = m.x;
+    p.y = m.y;
+    this->marker = point_to_field(p, this->layout);
 }
