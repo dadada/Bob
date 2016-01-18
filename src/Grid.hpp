@@ -6,9 +6,9 @@
 #include <vector>
 #include <assert.h>
 #include <unordered_set>
-#include <unordered_map>
-#include "Player.hpp"
 
+#ifndef POINT_OPERATORS
+#define POINT_OPERATORS
 SDL_Point operator+(SDL_Point left, SDL_Point right);
 
 SDL_Point operator-(SDL_Point left, SDL_Point right);
@@ -19,16 +19,17 @@ SDL_Point operator/(SDL_Point left, SDL_Point right);
 
 SDL_Point operator/(SDL_Point left, SDL_Point right);
 
-SDL_Point operator*(int left, SDL_Point right);
+SDL_Point operator*(double left, SDL_Point right);
 
-SDL_Point operator*(SDL_Point left, int right);
+SDL_Point operator*(SDL_Point left, double right);
 
-SDL_Point operator/(SDL_Point left, int right);
+SDL_Point operator/(SDL_Point left, double right);
 
-int operator!(SDL_Point left);
+double operator!(SDL_Point left);
+
+#endif
 
 #ifndef Point
-
 struct Point
 {
     double x;
@@ -37,6 +38,8 @@ struct Point
     Point(double x_, double y_) : x(x_), y(y_)
     { }
 };
+
+#endif
 
 Point operator+(Point left, Point right);
 
@@ -56,10 +59,7 @@ Point operator/(Point left, double right);
 
 double operator!(Point left);
 
-#endif
-
 #ifndef Orientation
-
 struct Orientation
 {
     // cubic to point
@@ -91,16 +91,16 @@ struct Layout
     const Orientation orientation;
     Uint16 size;
     SDL_Point origin;
+    SDL_Rect box;
 
-    Layout(Orientation orientation_, Uint16 size_, SDL_Point origin_)
-            : orientation(orientation_), size(size_), origin(origin_)
+    Layout(Orientation orientation_, Uint16 size_, SDL_Point origin_, SDL_Rect box_)
+            : orientation(orientation_), size(size_), origin(origin_), box(box_)
     { }
 };
 
 #endif
 
 #ifndef Field
-
 struct Field
 {
     Sint16 x, y, z;
@@ -115,6 +115,8 @@ struct Field
 const std::vector<Field> hex_directions = {
         Field(1, 0, -1), Field(0, 1, -1), Field(-1, 1, 0), Field(-1, 0, 1), Field(-1, 1, 0)
 };
+
+Field hex_direction(Uint8 direction);
 
 namespace std
 {
@@ -133,6 +135,8 @@ namespace std
     };
 }
 
+Field hex_neighbor(Uint8 direction, Field f);
+
 Field cubic_round(double x, double y, double z);
 
 int cubic_distance(Field a, Field b);
@@ -148,57 +152,42 @@ Field operator-(Field left, Field right);
 Field operator*(Field left, Field right);
 
 Field operator/(Field left, Field right);
-
 #endif
 
-Point field_to_point(const Field f, const Layout layout);
+Point field_to_point(const Field f, const Layout *layout);
 
-Field point_to_field(Point point, const Layout layout);
+Field point_to_field(Point point, const Layout *layout);
 
-Point field_corner_offset(int corner, const Layout layout);
+Point field_corner_offset(Uint8 corner, const Layout *layout);
 
-std::vector<Point> field_to_polygon(const Field field, const Layout layout);
+std::vector<Point> field_to_polygon_normalized(const Field field, const Layout *layout);
 
-#ifndef FieldMeta
+std::vector<Point> field_to_polygon(const Field field, const Layout *layout);
 
-class FieldMeta
-{
-private:
-    Player *owner;
-public:
-    FieldMeta(Player *owner_) : owner(owner_)
-    { }
-//    Player *get_owner();
-//    bool set_owner(Player *owner);
-};
-
-#endif
 
 #ifndef Grid
 
 class Grid
 {
 protected:
-    std::unordered_set<Field> fields;
-    std::unordered_map<Field, FieldMeta *> fields_meta;
-    Layout layout;
+    std::unordered_set<Field> *fields;
+    Layout *layout;
     Field marker;
+
+    bool on_rectangle(SDL_Rect *rect);
 public:
-    Grid(Layout layout_) : layout(layout_), marker(0, 0, 0)
+    Grid(Layout *layout_)
+            : layout(layout_), marker(0, 0, 0)
     {
-        this->fields = std::unordered_set<Field>();
-        this->fields_meta = std::unordered_map<Field, FieldMeta *>();
+        this->fields = new std::unordered_set<Field>();
     };
 
     ~Grid()
     {
-        for (const Field &elem : this->fields)
-        {
-            delete this->fields_meta.at(elem);
-        }
+        delete this->fields;
     }
 
-    void set_origin(SDL_Point origin);
+    std::unordered_set<Field> *get_fields() { return this->fields; }
 
     void move(SDL_Point move);
 
@@ -208,20 +197,22 @@ public:
 
     void handle_event(SDL_Event *event);
 
+    void update_box(int x, int y);
 };
 
 #endif
 
 #ifndef HexagonGrid
-
 class HexagonGrid : public Grid
 {
 private:
     Sint16 radius;
 public:
-    HexagonGrid(Sint16 grid_radius, Layout layout);
+    HexagonGrid(Sint16 grid_radius, Layout *layout);
 
     bool render(SDL_Renderer *renderer);
+
+    Sint16 get_radius() { return radius * layout->size; }
 };
 
 #endif

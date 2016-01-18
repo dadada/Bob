@@ -1,5 +1,3 @@
-#include <string>
-#include <SDL_video.h>
 #include "Main.hpp"
 
 
@@ -11,7 +9,7 @@ void logSDLError(std::ostream &os, const std::string &msg)
 SDL_Window *init_window()
 {
 
-    SDL_Window *window = SDL_CreateWindow("Hello World!", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+    SDL_Window *window = SDL_CreateWindow(TITLE, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
                                           SCREEN_WIDTH, SCREEN_HEIGTH, SDL_WINDOW_OPENGL);
     if (window == NULL)
     {
@@ -60,6 +58,7 @@ void Game::toggle_fullscreen()
         this->full_screen = true;
         SDL_SetWindowSize(this->window, dm.w, dm.h);
         SDL_SetWindowFullscreen(this->window, SDL_WINDOW_FULLSCREEN);
+        this->grid->update_box(dm.w, dm.h);
     }
     else
     {
@@ -67,6 +66,7 @@ void Game::toggle_fullscreen()
         SDL_SetWindowFullscreen(this->window, 0);
         SDL_SetWindowSize(this->window, SCREEN_WIDTH, SCREEN_HEIGTH);
         SDL_SetWindowPosition(this->window, dm.w / 4, dm.h / 4);
+        this->grid->update_box(SCREEN_WIDTH, SCREEN_HEIGTH);
     }
 }
 
@@ -104,21 +104,45 @@ void Game::handle_event(SDL_Event *event)
         if (key == SDLK_d)
             this->move[3] = false;
     }
+    if (event->type == SDL_WINDOWEVENT)
+    {
+        if (event->window.windowID == SDL_GetWindowID(this->window))
+        {
+            switch (event->window.event)
+            {
+                case SDL_WINDOWEVENT_SIZE_CHANGED:
+                {
+                    this->grid->update_box(event->window.data1, event->window.data2);
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+    }
 }
 
 int Game::game_loop()
 {
     Timer *frame_timer = new Timer();
     frame_timer->start_timer();
+    Timer *move_timer = new Timer();
+    move_timer->start_timer();
     double fps;
     Uint32 frame_counter = 0;
     while (!this->quit)
     {
+        if (move_timer->get_timer() > 10)
+        {
+            move_timer->reset_timer();
+            SDL_Point move_by = {(this->move[1] - this->move[3]) * 10, (this->move[0] - this->move[2]) * 10};
+            this->grid->move(move_by);
+        }
         if (frame_timer->get_timer() > 1000.0)
         {
             fps = frame_counter / (frame_timer->reset_timer() / 1000.0);
             frame_counter = 0;
-            std::cout << fps << std::endl;
+            std::cout << fps << " fps" << std::endl;
         }
         SDL_Event event;
         while (SDL_PollEvent(&event))
@@ -130,24 +154,33 @@ int Game::game_loop()
             if (event.type == SDL_QUIT)
             {
                 quit = true;
-                break;
             }
             if (event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEWHEEL)
             {
                 grid->handle_event(&event);
             }
         }
-        SDL_Point move_by = {(this->move[1] - this->move[3]) * 10, (this->move[0] - this->move[2]) * 10};
-        this->grid->move(move_by);
         SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0x00);
+
         SDL_RenderClear(renderer);
         SDL_SetRenderDrawColor(renderer, 0xff, 0xff, 0xff, 0xff);
-        this->grid->render(renderer);
+        this->render(renderer);
         SDL_RenderPresent(renderer);
         frame_counter++;
     }
+    SDL_RenderClear(renderer);
+    delete move_timer;
     delete frame_timer;
     return 0;
+}
+
+void Game::render(SDL_Renderer *renderer)
+{
+    this->grid->render(renderer);
+    for (FieldMeta *meta : this->fields_meta)
+    {
+        meta->render(renderer, this->layout);
+    }
 }
 
 int main(int, char **)
@@ -172,12 +205,21 @@ int main(int, char **)
         SDL_Quit();
         return -1;
     }
-    Game *game = new Game(window, renderer);
+    Layout *layout = new Layout(pointy_orientation, GRID_SIZE, {5 * SCREEN_WIDTH / 12, 5 * SCREEN_HEIGTH / 12},
+                                {0, 0, 5 * SCREEN_WIDTH / 6, 5 * SCREEN_HEIGTH / 6});
+    Game *game = new Game(window, renderer, layout);
     int exit_status = game->game_loop();
     delete game;
+    delete layout;
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
     return exit_status;
 }
 
+bool position_in_window(SDL_Point position, SDL_Window *window)
+{
+    SDL_DisplayMode dm;
+    SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(window), &dm);
+    return position.x > 0 && position.x < dm.w && position.y > 0 && position.y < dm.h;
+}

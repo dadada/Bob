@@ -1,12 +1,16 @@
 #include <iostream>
+#include <string>
 #include <utility>
 #include <SDL2/SDL.h>
-#include "GameMap.hpp"
+#include <SDL_video.h>
+#include "Gameplay.hpp"
+#include <unordered_set>
 
 #ifndef DEFAULTS
-const Sint16 GRID_SIZE = 20;
+const Sint16 GRID_SIZE = 4;
 const int SCREEN_WIDTH = 800;
 const int SCREEN_HEIGTH = 600;
+char TITLE[] = "Bob - Battles of Bacteria";
 #endif
 
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
@@ -44,31 +48,49 @@ private:
     SDL_Window *window;
     SDL_Renderer *renderer;
     HexagonGrid *grid;
+    // only deal with meta information
+    std::unordered_set<FieldMeta *> fields_meta;
+    Layout *layout;
     bool move[4];
     bool full_screen;
     bool quit;
+
 public:
-    Game(SDL_Window *window_, SDL_Renderer *renderer_)
-            : window(window_), renderer(renderer_)
+    Game(SDL_Window *window_, SDL_Renderer *renderer_, Layout *layout_)
+            : window(window_), renderer(renderer_), layout(layout_)
     {
-        Layout layout = {pointy_orientation, GRID_SIZE, {SCREEN_WIDTH / 2, SCREEN_HEIGTH / 2}};
         this->grid = new HexagonGrid(GRID_SIZE, layout);
         for (int i = 0; i < 4; i++)
         {
             this->move[i] = false;
         }
         this->quit = false;
+        // create meta information for every field on the grid
+        for (const Field &elem : *(grid->get_fields()))
+        {
+            FieldMeta *meta = new FieldMeta(elem);
+            fields_meta.insert(meta);
+        }
     }
-
-    void toggle_fullscreen();
 
     ~Game()
     {
+        for (const FieldMeta *elem : this->fields_meta)
+        {
+            delete elem;
+        }
         delete this->grid;
     }
 
+    void render(SDL_Renderer *renderer);
+
+    void toggle_fullscreen();
+
     void handle_event(SDL_Event *event);
+
     int game_loop();
 };
 
 #endif
+
+bool position_in_window(SDL_Point position, SDL_Window *window);
