@@ -173,7 +173,7 @@ protected:
     std::unordered_set<Field> *fields;
     Layout *layout;
     Field marker;
-
+    bool panning;
     bool on_rectangle(SDL_Rect *rect);
 public:
     Grid(Layout *layout_)

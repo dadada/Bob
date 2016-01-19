@@ -271,7 +271,21 @@ void Grid::handle_event(SDL_Event *event)
     }
     if (event->type == SDL_MOUSEMOTION)
     {
+        if (this->panning)
+        {
+            SDL_Point mouse = {0, 0};
+            SDL_GetMouseState(&mouse.x, &mouse.y);
+            Point marker_pos = field_to_point(this->marker, this->layout);
+            SDL_Point p;
+            p.x = (int) marker_pos.x;
+            p.y = (int) marker_pos.y;
+            this->move(mouse - p);
+        }
         this->update_marker();
+    }
+    if (event->type == SDL_MOUSEBUTTONDOWN && event->button.button == SDL_BUTTON_MIDDLE)
+    {
+        this->panning = !(this->panning);
     }
 }
 
