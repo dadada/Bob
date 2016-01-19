@@ -10,7 +10,8 @@
 const Sint16 GRID_SIZE = 4;
 const int SCREEN_WIDTH = 800;
 const int SCREEN_HEIGTH = 600;
-char TITLE[] = "Bob - Battles of Bacteria";
+const int SIDEBOX_WIDTH = 200;
+const char TITLE[] = "Bob - Battles of Bacteria";
 #endif
 
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
@@ -49,7 +50,7 @@ private:
     SDL_Renderer *renderer;
     HexagonGrid *grid;
     // only deal with meta information
-    std::unordered_set<FieldMeta *> fields_meta;
+    Cluster fields_meta;
     Layout *layout;
     bool move[4];
     bool full_screen;

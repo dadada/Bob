@@ -9,6 +9,8 @@
 #include <SDL2/SDL_render.h>
 #include "Grid.hpp"
 
+
+#ifndef Upgrade
 typedef enum
 {
     UPGRADE_FIRST_UPGRADE = 0,
@@ -17,6 +19,7 @@ typedef enum
     UPGRADE_REGENERATION_3,
     UPGRADE_REPRODUCTION
 } Upgrade;
+#endif
 
 #ifndef Tagged
 
@@ -96,6 +99,8 @@ public:
         return descriptor.str();
     }
 
+    bool fight(Field field);
+
     static Player default_player;
 };
 
@@ -125,9 +130,21 @@ struct Resource
 
     Resource &operator-=(const Resource &rhs)
     {
-        this->circle -= rhs.circle;
-        this->triangle -= rhs.triangle;
-        this->square -= rhs.square;
+        if (this->circle < rhs.circle)
+            this->circle = 0;
+        else
+            this->circle -= rhs.circle;
+
+        if (this->triangle < rhs.triangle)
+            this->triangle = 0;
+        else
+            this->triangle -= rhs.triangle;
+
+        if (this->square < rhs.square)
+            this->square = 0;
+        else
+            this->square -= rhs.square;
+
         return *this;
     }
 
@@ -180,9 +197,17 @@ struct Resource
     inline bool operator<=(const Resource &rhs) const { return !(*this > rhs); }
 
     inline bool operator>=(const Resource &rhs) const { return !(*this < rhs); }
+
+    bool operator==(const Resource &rhs) const
+    {
+        return (this->circle == rhs.circle && this->triangle == rhs.triangle && this->square == rhs.square);
+    }
+
+    inline bool operator!=(const Resource &rhs) const { return !(*this == rhs); }
 };
 
 #endif
+
 
 #ifndef FieldMeta
 
@@ -201,7 +226,15 @@ public:
         this->resources_base.square = distro(rng);
         std::pair<Field, FieldMeta *> pair(field, this);
         this->fields.insert(pair);
+        this->offense = 1;
+        this->defense = 1;
     }
+
+    int get_offense();
+
+    int get_defense();
+
+    static FieldMeta *get_meta(Field field);
 
     Field get_field();
 
@@ -209,19 +242,26 @@ public:
 
     void set_owner(Player *player);
 
+    //void set_owner(Player *player);
+
     void render(SDL_Renderer *renderer, Layout *layout);
 
     Resource get_resources();
 
     Resource get_resources_of_cluster();
 
-    std::unordered_set<FieldMeta *> *get_cluster(std::unordered_set<FieldMeta *> *visited);
+    Resource get_resources_of_cluster(std::unordered_set<FieldMeta *> cluster);
+
+    std::unordered_set<FieldMeta *> get_cluster(
+            std::unordered_set<FieldMeta *> visited = std::unordered_set<FieldMeta *>());
 
     Uint32 get_upgrades();
 
     void regenerate_resources();
 
     bool upgrade(Upgrade upgrade);
+
+    Resource consume_resources_of_cluster(Resource costs);
 
 private:
     const Field field;
@@ -230,6 +270,13 @@ private:
     Uint32 upgrades;
     Resource resources_base; // without upgrades applied, used as basis of regeneration
     Resource resources; // actual current resources
+    int offense;
+    int defense;
 };
 
 #endif
+
+#ifndef Cluster
+typedef std::unordered_set<FieldMeta *> Cluster;
+#endif
+

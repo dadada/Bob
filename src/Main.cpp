@@ -58,7 +58,7 @@ void Game::toggle_fullscreen()
         this->full_screen = true;
         SDL_SetWindowSize(this->window, dm.w, dm.h);
         SDL_SetWindowFullscreen(this->window, SDL_WINDOW_FULLSCREEN);
-        this->grid->update_box(dm.w, dm.h);
+        this->grid->update_box(dm.w - SIDEBOX_WIDTH, dm.h);
     }
     else
     {
@@ -135,7 +135,7 @@ int Game::game_loop()
         if (move_timer->get_timer() > 10)
         {
             move_timer->reset_timer();
-            SDL_Point move_by = {(this->move[1] - this->move[3]) * 10, (this->move[0] - this->move[2]) * 10};
+            SDL_Point move_by = {(this->move[1] - this->move[3]) * 20, (this->move[0] - this->move[2]) * 20};
             this->grid->move(move_by);
         }
         if (frame_timer->get_timer() > 1000.0)
@@ -155,7 +155,7 @@ int Game::game_loop()
             {
                 quit = true;
             }
-            if (event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEWHEEL)
+            if (event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEWHEEL || event.type == SDL_MOUSEBUTTONDOWN)
             {
                 grid->handle_event(&event);
             }
@@ -205,8 +205,8 @@ int main(int, char **)
         SDL_Quit();
         return -1;
     }
-    Layout *layout = new Layout(pointy_orientation, GRID_SIZE, {5 * SCREEN_WIDTH / 12, 5 * SCREEN_HEIGTH / 12},
-                                {0, 0, 5 * SCREEN_WIDTH / 6, 5 * SCREEN_HEIGTH / 6});
+    Layout *layout = new Layout(pointy_orientation, 20, {SCREEN_WIDTH / 2, SCREEN_HEIGTH / 2},
+                                {0, 0, SCREEN_WIDTH - SIDEBOX_WIDTH, SCREEN_HEIGTH});
     Game *game = new Game(window, renderer, layout);
     int exit_status = game->game_loop();
     delete game;

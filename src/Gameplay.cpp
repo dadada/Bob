@@ -9,11 +9,6 @@ Player *FieldMeta::get_owner()
     return this->owner;
 }
 
-void FieldMeta::set_owner(Player *player)
-{
-    this->owner = player;
-}
-
 Field FieldMeta::get_field() { return this->field; }
 
 void FieldMeta::render(SDL_Renderer *renderer, Layout *layout)
@@ -31,7 +26,9 @@ void FieldMeta::render(SDL_Renderer *renderer, Layout *layout)
         vx[i] = (Sint16) polygon[i].x;
         vy[i] = (Sint16) polygon[i].y;
     }
-    filledPolygonRGBA(renderer, vx, vy, 6, color.r, color.g, color.b, 0x22);
+    if ((*this->owner) == Player::default_player)
+        color = {0x77, 0x77, 0x77, 0x77};
+    filledPolygonRGBA(renderer, vx, vy, 6, color.r, color.g, color.b, 0x33);
     SDL_Color inverse;
     inverse.r = (Uint8) (0xff - color.r);
     inverse.g = (Uint8) (0xff - color.g);
@@ -95,18 +92,21 @@ Resource FieldMeta::get_resources()
     return this->resources;
 }
 
-Resource FieldMeta::get_resources_of_cluster()
+Resource FieldMeta::get_resources_of_cluster(Cluster cluster)
 {
     Resource res = {0, 0, 0};
-    std::unordered_set<FieldMeta *> *cluster = new std::unordered_set<FieldMeta *>();
-    this->get_cluster(cluster);
-    for (FieldMeta *elem : *cluster)
+    for (FieldMeta *elem : cluster)
     {
         Resource r_plus = elem->get_resources();
         res += r_plus;
     }
-    delete cluster;
     return res;
+}
+
+Resource FieldMeta::get_resources_of_cluster()
+{
+    Cluster cluster = this->get_cluster();
+    return this->get_resources_of_cluster(cluster);
 }
 
 Uint32 FieldMeta::get_upgrades() { return this->upgrades; }
@@ -132,22 +132,22 @@ bool FieldMeta::upgrade(Upgrade upgrade)
             std::cout << "Unknown update: " << upgrade;
             break;
     }
-    if (cluster_resources > costs)
+    Resource remaining_costs = this->consume_resources_of_cluster(costs);
+    Resource neutral = {0, 0, 0};
+    if (remaining_costs == neutral)
     {
-        this->resources -= costs;
         this->upgrades |= upgrade;
+        return true;
     }
     return false;
 }
 
-std::unordered_set<FieldMeta *> *FieldMeta::get_cluster(std::unordered_set<FieldMeta *> *visited)
+Cluster FieldMeta::get_cluster(Cluster visited)
 {
-    assert(visited != nullptr);
-
-    if (visited->find(this) != visited->end()) // already been here before
+    if (visited.find(this) != visited.end()) // already been here before
         return visited;
 
-    visited->insert(this);
+    visited.insert(this);
 
     for (Uint8 i = 0; i < 6; i++)
     {
@@ -159,4 +159,81 @@ std::unordered_set<FieldMeta *> *FieldMeta::get_cluster(std::unordered_set<Field
             return neighbor->get_cluster(visited);
     }
     return visited;
+}
+
+Resource FieldMeta::consume_resources_of_cluster(Resource costs)
+{
+    Cluster cluster = this->get_cluster();
+    Resource cluster_resources = this->get_resources_of_cluster(cluster);
+    for (FieldMeta *meta : cluster)
+    {
+        // mind the "special" definition of -=, only byte of what you can chew or leave nothing behind
+        Resource tmp = costs;
+        costs -= meta->resources;
+        meta->resources -= tmp;
+    }
+    return costs; // > {0, 0, 0} means there were not enough resources
+}
+
+void FieldMeta::set_owner(Player *player)
+{
+    this->owner = player;
+}
+
+FieldMeta *FieldMeta::get_meta(Field field)
+{
+    auto pair = fields.find(field);
+    if (pair != fields.end())
+    {
+        return pair->second;
+    }
+    return nullptr; // no meta-information (there is no field on the map at this location)
+}
+
+bool Player::fight(Field field)
+{
+    FieldMeta *meta = FieldMeta::get_meta(field);
+    if (meta == nullptr || *this == *(meta->get_owner())) // attacked field outside of the map or friendly fire
+    {
+        return false;
+    }
+    if (*(meta->get_owner()) == this->default_player) // still to be had
+    {
+        meta->set_owner(this);
+        return true;
+    }
+
+    // defending player's defense against attacking player's offense
+    int power_level = meta->get_defense(); // it's over 9000
+    Field center = meta->get_field();
+    for (Uint8 i = 0; i < 6; i++)
+    {
+        Field neighbor = hex_neighbor(i, center);
+        FieldMeta *neighbor_meta = FieldMeta::get_meta(neighbor);
+        if (neighbor_meta == nullptr) // there is no neighbor in this direction
+        {
+            continue;
+        }
+        if (*(neighbor_meta->get_owner()) == *this) // comparison by UUID
+            power_level -= neighbor_meta->get_offense();
+        else if (*(neighbor_meta->get_owner()) == *(meta->get_owner()))
+            power_level += neighbor_meta->get_defense();
+        // else ignore, field / player not part of the fight (e.g. default player)
+    }
+    if (power_level < 0) // attacking player has won
+    {
+        meta->set_owner(this);
+        return true;
+    }
+    return false;
+}
+
+int FieldMeta::get_offense()
+{
+    return this->offense;
+}
+
+int FieldMeta::get_defense()
+{
+    return this->defense;
 }
