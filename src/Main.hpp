@@ -2,7 +2,7 @@
 #include <string>
 #include <utility>
 #include <SDL2/SDL.h>
-#include <SDL_video.h>
+#include <SDL2/SDL_video.h>
 #include "Gameplay.hpp"
 #include <unordered_set>
 

@@ -11,10 +11,10 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build/bin)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build/bin)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake")
 
-find_package(SDL2 REQUIRED)
-find_package(SDL2_gfx REQUIRED)
-find_package(Boost REQUIRED)
-
-include_directories(include ${SDL2_INCLUDE_DIR} ${SDL2GFX_INCLUDE_DIR} ${BOOST_INCLUDE_DIR})
+find_library(SDL2_LIB SDL2)
+find_library(SDL2_GFX_LIB SDL2_gfx)
+find_library(SDL2_IMAGE_LIB SDL2_image)
+find_library(SDL2_TTF_LIB SDL2_ttf)
+find_library(BOOST_UUID_LIB boost/uuid)
 
 add_subdirectory(src)
