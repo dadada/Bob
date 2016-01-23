@@ -7,106 +7,16 @@
 #include <boost/uuid/uuid_generators.hpp>
 #include <SDL2/SDL_pixels.h>
 #include <SDL2/SDL_render.h>
+#include <bitset>
 #include "Grid.hpp"
+#include <stdexcept>
 
+#ifndef _GAMEPLAY_H
+#define _GAMEPLAY_H
 
-#ifndef Upgrade
-typedef enum
-{
-    UPGRADE_FIRST_UPGRADE = 0,
-    UPGRADE_REGENERATION_1,
-    UPGRADE_REGENERATION_2,
-    UPGRADE_REGENERATION_3,
-    UPGRADE_REPRODUCTION
-} Upgrade;
-#endif
+#define NUM_UPGRADES 10
 
-#ifndef Tagged
-
-class Tagged
-{
-private:
-    boost::uuids::uuid tag;
-
-    int state;
-public:
-    // construct new
-    Tagged()
-            : tag(boost::uuids::random_generator()()), state(0) { }
-
-    // construct with state
-    explicit Tagged(int state)
-            : tag(boost::uuids::random_generator()()), state(state) { }
-
-    // clone
-    Tagged(Tagged const &rhs)
-            : tag(rhs.tag), state(rhs.state) { }
-
-    bool operator==(Tagged const &rhs) const
-    {
-        return tag == rhs.tag;
-    }
-
-    bool operator!=(Tagged const &rhs) const
-    {
-        return !(tag == rhs.tag);
-    }
-
-    int get_state() const { return state; }
-
-    void set_state(int new_state) { state = new_state; }
-
-    boost::uuids::uuid get_tag() { return tag; }
-
-    void set_tag(boost::uuids::uuid uuid_) { tag = uuid_; }
-};
-
-#endif
-
-#ifndef Player
-
-class Player : public Tagged
-{
-private:
-    SDL_Color color;
-    std::string name;
-
-public:
-    Player(std::string name_)
-            : name(name_), Tagged()
-    {
-        // use the last 24 bits of the tag for the color
-        boost::uuids::uuid id = get_tag();
-        uint8_t *data = id.data;
-        this->color = {data[13], data[14], data[15], 0xff};
-    }
-
-    Player(std::string name_, boost::uuids::uuid tag_)
-            : Tagged(), name(name_)
-    {
-        this->set_tag(tag_);
-    }
-
-    SDL_Color get_color() { return color; }
-
-    std::string get_name()
-    {
-        std::ostringstream descriptor;
-        boost::uuids::uuid id = get_tag();
-        uint8_t *data = id.data;
-        Uint16 number = (data[14] << 8) | (data[15]);
-        descriptor << this->name << " (" << std::hex << number << ")";
-        return descriptor.str();
-    }
-
-    bool fight(Field field);
-
-    static Player default_player;
-};
-
-#endif
-
-#ifndef Resource
+typedef std::bitset<NUM_UPGRADES> UpgradeFlags;
 
 struct Resource
 {
@@ -206,15 +116,124 @@ struct Resource
     inline bool operator!=(const Resource &rhs) const { return !(*this == rhs); }
 };
 
-#endif
+enum Upgrade
+{
+    First_Upgrade = 0,
+    Regeneration_1,
+    Regeneration_2,
+    Regeneration_3,
+    Reproduction_1,
+    Reproduction_2,
+    Reproduction_3
+};
 
+namespace std
+{
+    template<>
+    struct hash<Upgrade>
+    {
+        size_t operator()(const Upgrade &f) const
+        {
+            int i = static_cast<int>(f);
+            hash<int> int_hash;
+            return int_hash(f);
+        }
+    };
+}
 
-#ifndef FieldMeta
+const std::unordered_map<Upgrade, Resource> UPGRADE_COSTS(
+        {
+                {Regeneration_1, {4,  4,  4}},
+                {Regeneration_2, {8,  8,  8}},
+                {Regeneration_3, {16, 16, 16}},
+                {Reproduction_1, {4,  4,  4}},
+                {Reproduction_2, {8,  8,  8}},
+                {Reproduction_3, {16, 16, 16}}
+        }
+);
+
+class Tagged
+{
+private:
+    boost::uuids::uuid tag;
+
+    int state;
+public:
+    // construct new
+    Tagged()
+            : tag(boost::uuids::random_generator()()), state(0) { }
+
+    // construct with state
+    explicit Tagged(int state)
+            : tag(boost::uuids::random_generator()()), state(state) { }
+
+    // clone
+    Tagged(Tagged const &rhs)
+            : tag(rhs.tag), state(rhs.state) { }
+
+    bool operator==(Tagged const &rhs) const
+    {
+        return tag == rhs.tag;
+    }
+
+    bool operator!=(Tagged const &rhs) const
+    {
+        return !(tag == rhs.tag);
+    }
+
+    int get_state() const { return state; }
+
+    void set_state(int new_state) { state = new_state; }
+
+    boost::uuids::uuid get_tag() { return tag; }
+
+    void set_tag(boost::uuids::uuid uuid_) { tag = uuid_; }
+};
+
+class Player;
+
+class FieldMeta;
+
+class Player : public Tagged
+{
+
+public:
+    Player(std::string name_)
+            : name(name_), Tagged()
+    {
+        // use the last 24 bits of the tag for the color
+        boost::uuids::uuid id = get_tag();
+        uint8_t *data = id.data;
+        this->color = {data[13], data[14], data[15], 0xff};
+    }
+
+    SDL_Color get_color() { return color; }
+
+    std::string get_name()
+    {
+        std::ostringstream descriptor;
+        boost::uuids::uuid id = get_tag();
+        uint8_t *data = id.data;
+        Uint16 number = (data[14] << 8) | (data[15]);
+        descriptor << this->name << " (" << std::hex << number << ")";
+        return descriptor.str();
+    }
+
+    bool fight(FieldMeta *field);
+
+private:
+    SDL_Color color;
+    std::string name;
+};
+
+class Grid;
+
+class HexagonGrid;
 
 class FieldMeta
 {
 public:
-    FieldMeta(Field field_, Player *owner_ = &(Player::default_player))
+    FieldMeta(Field field_, Player *owner_)
             : field(field_), owner(owner_)
     {
         this->upgrades = 0;
@@ -224,59 +243,135 @@ public:
         this->resources_base.circle = distro(rng);
         this->resources_base.triangle = distro(rng);
         this->resources_base.square = distro(rng);
-        std::pair<Field, FieldMeta *> pair(field, this);
-        this->fields.insert(pair);
         this->offense = 1;
         this->defense = 1;
     }
 
-    int get_offense();
+    HexagonGrid *get_grid() { return this->grid; }
 
-    int get_defense();
+    int get_offense() { return this->offense; }
 
-    static FieldMeta *get_meta(Field field);
+    int get_defense() { return this->defense; }
 
-    Field get_field();
+    Field get_field() { return this->field; }
 
-    Player *get_owner();
+    Player *get_owner() { return this->owner; }
 
-    void set_owner(Player *player);
-
-    //void set_owner(Player *player);
+    void set_owner(Player *player) { this->owner = player; }
 
     void render(SDL_Renderer *renderer, Layout *layout);
 
-    Resource get_resources();
+    Resource get_resources() { return this->resources; }
 
-    Resource get_resources_of_cluster();
+    UpgradeFlags get_upgrades() { return this->upgrades; }
 
-    Resource get_resources_of_cluster(std::unordered_set<FieldMeta *> cluster);
-
-    std::unordered_set<FieldMeta *> get_cluster(
-            std::unordered_set<FieldMeta *> visited = std::unordered_set<FieldMeta *>());
-
-    Uint32 get_upgrades();
+    void consume_resources(Resource costs) { this->resources -= costs; }
 
     void regenerate_resources();
 
     bool upgrade(Upgrade upgrade);
 
-    Resource consume_resources_of_cluster(Resource costs);
+    void handle_event(const SDL_Event *event);
+
+    FieldMeta *get_neighbor(Uint8 direction);
 
 private:
     const Field field;
-    static std::unordered_map<Field, FieldMeta *> fields;
+    HexagonGrid *grid;
     Player *owner;
-    Uint32 upgrades;
+    UpgradeFlags upgrades;
     Resource resources_base; // without upgrades applied, used as basis of regeneration
     Resource resources; // actual current resources
     int offense;
     int defense;
 };
 
-#endif
-
-#ifndef Cluster
 typedef std::unordered_set<FieldMeta *> Cluster;
-#endif
 
+class Grid
+{
+
+public:
+    Grid(Layout *layout_)
+            : layout(layout_)
+    {
+        Field f = {0, 0, 0};
+        std::unordered_map<Field, FieldMeta *> fields = std::unordered_map<Field, FieldMeta *>();
+        this->default_player = new Player("Default");
+        this->marker = new FieldMeta(f, default_player);
+    };
+
+    ~Grid()
+    {
+        for (auto const &elem : this->fields)
+        {
+            delete elem.second;
+        }
+    }
+
+    Player *get_default_player() { return this->default_player; }
+
+    void move(SDL_Point move);
+
+    void update_marker();
+
+    virtual bool render(SDL_Renderer *renderer) { return false; };
+
+    void handle_event(SDL_Event *event);
+
+    void update_box(SDL_Point dimensions);
+
+    Resource get_resources_of_cluster(const Cluster *cluster);
+
+    virtual FieldMeta *get_neighbor(FieldMeta *field, Uint8 direction) = 0;
+
+    virtual Cluster *get_cluster(FieldMeta *field, Cluster *visited = nullptr) = 0;
+
+    Resource consume_resources_of_cluster(Cluster *cluster, Resource costs);
+
+    FieldMeta *point_to_field(const Point p);
+
+protected:
+    Player *default_player;
+    std::unordered_map<Field, FieldMeta *> fields;
+    Layout *layout;
+    FieldMeta *marker;
+    bool panning;
+
+    bool on_rectangle(SDL_Rect *rect);
+};
+
+class HexagonGrid : public Grid
+{
+public:
+    HexagonGrid(Sint16 grid_radius, Layout *layout)
+            : Grid(layout), radius(grid_radius)
+    {
+        // first lower half, then upper half
+        for (Sint16 x = -grid_radius; x <= grid_radius; x++)
+        {
+            Sint16 y_l = (-grid_radius > -x - grid_radius) ? -grid_radius : -x - grid_radius;
+            Sint16 y_u = (grid_radius < -x + grid_radius) ? grid_radius : -x + grid_radius;
+            for (Sint16 y = y_l; y <= y_u; y++)
+            {
+                Sint16 z = -x - y;
+                Field new_field = {x, y, z};
+                FieldMeta *meta = new FieldMeta(new_field, default_player);
+                this->fields.insert({new_field, meta});
+            }
+        }
+    }
+
+    FieldMeta *get_neighbor(FieldMeta *field, Uint8 direction);
+
+    Cluster *get_cluster(FieldMeta *field, Cluster *visited = nullptr);
+
+    bool render(SDL_Renderer *renderer);
+
+    Sint16 get_radius() { return radius * layout->size; }
+
+private:
+    Sint16 radius;
+};
+
+#endif

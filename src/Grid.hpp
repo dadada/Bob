@@ -7,8 +7,9 @@
 #include <assert.h>
 #include <unordered_set>
 
-#ifndef POINT_OPERATORS
-#define POINT_OPERATORS
+#ifndef _GRID_H
+#define _GRID_H
+
 SDL_Point operator+(SDL_Point left, SDL_Point right);
 
 SDL_Point operator-(SDL_Point left, SDL_Point right);
@@ -27,39 +28,6 @@ SDL_Point operator/(SDL_Point left, double right);
 
 double operator!(SDL_Point left);
 
-#endif
-
-#ifndef Point
-struct Point
-{
-    double x;
-    double y;
-
-    Point(double x_, double y_) : x(x_), y(y_)
-    { }
-};
-
-#endif
-
-Point operator+(Point left, Point right);
-
-Point operator-(Point left, Point right);
-
-Point operator*(Point left, Point right);
-
-Point operator/(Point left, Point right);
-
-Point operator*(double left, Point right);
-
-Point operator*(Point left, double right);
-
-Point operator/(double left, Point right);
-
-Point operator/(Point left, double right);
-
-double operator!(Point left);
-
-#ifndef Orientation
 struct Orientation
 {
     // cubic to point
@@ -76,31 +44,128 @@ struct Orientation
     { }
 };
 
-const Orientation pointy_orientation = Orientation(sqrt(3.0), sqrt(3.0) / 2.0, 0.0, 3.0 / 2.0,
-                                                   sqrt(3.0) / 3.0, -1.0 / 3.0, 0.0, 2.0 / 3.0,
-                                                   0.5);
-const Orientation flat_orientation = Orientation(3.0 / 2.0, 0.0, sqrt(3.0) / 2.0, sqrt(3.0),
-                                                 2.0 / 3.0, 0.0, -1.0 / 3.0, sqrt(3.0) / 3.0,
-                                                 0);
-#endif
-
-#ifndef Layout
+const Orientation pointy_orientation = Orientation(sqrt(3.0), sqrt(3.0) / 2.0, 0.0, 3.0 / 2.0, sqrt(3.0) / 3.0,
+                                                   -1.0 / 3.0, 0.0, 2.0 / 3.0, 0.5);
+const Orientation flat_orientation = Orientation(3.0 / 2.0, 0.0, sqrt(3.0) / 2.0, sqrt(3.0), 2.0 / 3.0, 0.0, -1.0 / 3.0,
+                                                 sqrt(3.0) / 3.0, 0);
 
 struct Layout
 {
     const Orientation orientation;
-    Uint16 size;
+    Sint16 size;
     SDL_Point origin;
     SDL_Rect box;
 
-    Layout(Orientation orientation_, Uint16 size_, SDL_Point origin_, SDL_Rect box_)
+    Layout(Orientation orientation_, Sint16 size_, SDL_Point origin_, SDL_Rect box_)
             : orientation(orientation_), size(size_), origin(origin_), box(box_)
     { }
 };
 
-#endif
+struct Field;
 
-#ifndef Field
+struct Point
+{
+    double x;
+    double y;
+
+    Point(double x_, double y_) : x(x_), y(y_) { }
+
+    bool operator==(const Point &rhs) const
+    {
+        return (this->x == rhs.x && this->y == rhs.y);
+    }
+
+    inline bool operator!=(const Point &rhs) const
+    {
+        return !(*this == rhs);
+    }
+
+    Point &operator+=(const Point &rhs)
+    {
+        this->x += rhs.x;
+        this->y += rhs.y;
+        return *this;
+    }
+
+    friend Point operator+(Point lhs, const Point &rhs)
+    {
+        lhs += rhs;
+        return lhs;
+    }
+
+    Point &operator-=(const Point &rhs)
+    {
+        this->x -= rhs.x;
+        this->y -= rhs.y;
+        return *this;
+    }
+
+    friend Point operator-(Point lhs, const Point &rhs)
+    {
+        lhs -= rhs;
+        return rhs;
+    }
+
+    Point &operator*=(const Point &rhs)
+    {
+        this->x *= rhs.x;
+        this->y *= rhs.y;
+        return *this;
+    }
+
+    friend Point operator*(Point lhs, const Point &rhs)
+    {
+        lhs *= rhs;
+        return rhs;
+    }
+
+    Point &operator/=(const Point &rhs)
+    {
+        this->x /= rhs.x;
+        this->y /= rhs.y;
+        return *this;
+    }
+
+    friend Point operator/(Point lhs, const Point &rhs)
+    {
+        lhs /= rhs;
+        return lhs;
+    }
+
+    Point &operator*=(const double &rhs)
+    {
+        this->x *= rhs;
+        this->y *= rhs;
+        return *this;
+    }
+
+    friend Point operator*(Point lhs, const double &rhs)
+    {
+        lhs *= rhs;
+        return lhs;
+    }
+
+    Point &operator/=(const double &rhs)
+    {
+        this->x /= rhs;
+        this->y /= rhs;
+        return *this;
+    }
+
+    friend Point operator/(Point lhs, const double &rhs)
+    {
+        lhs /= rhs;
+        return lhs;
+    }
+
+    double operator!()
+    {
+        return std::sqrt(this->x * this->x + this->y * this->y);
+    }
+
+    Field point_to_field(const Layout *layout) const;
+};
+
 struct Field
 {
     Sint16 x, y, z;
@@ -109,14 +174,132 @@ struct Field
     {
         assert(x + y + z == 0);
     }
+
+    bool operator==(const Field &rhs) const
+    {
+        return (this->x == rhs.x && this->y == rhs.y);
+    }
+
+    inline bool operator!=(const Field &rhs) const
+    {
+        return !(*this == rhs);
+    }
+
+    Field &operator+=(const Field &rhs)
+    {
+        this->x += rhs.x;
+        this->y += rhs.y;
+        this->z += rhs.z;
+        return *this;
+    }
+
+    friend Field operator+(Field lhs, const Field &rhs)
+    {
+        lhs += rhs;
+        return lhs;
+    }
+
+    Field &operator-=(const Field &rhs)
+    {
+        this->x -= rhs.x;
+        this->y -= rhs.y;
+        this->z -= rhs.z;
+        return *this;
+    }
+
+    friend Field operator-(Field lhs, const Field &rhs)
+    {
+        lhs -= rhs;
+        return rhs;
+    }
+
+    Field &operator*=(const Field &rhs)
+    {
+        this->x *= rhs.x;
+        this->y *= rhs.y;
+        this->z *= rhs.z;
+        return *this;
+    }
+
+    friend Field operator*(Field lhs, const Field &rhs)
+    {
+        lhs *= rhs;
+        return rhs;
+    }
+
+    Field &operator/=(const Field &rhs)
+    {
+        double x = this->x / rhs.x;
+        double y = this->y / rhs.y;
+        double z = this->z / rhs.z;
+        Field f = cubic_round(x, y, z);
+        *this = f;
+        return *this;
+    }
+
+    friend Field operator/(Field lhs, const Field &rhs)
+    {
+        lhs /= rhs;
+        return lhs;
+    }
+
+    Field &operator*=(const double &rhs)
+    {
+        double x = this->x * rhs;
+        double y = this->y * rhs;
+        double z = this->z * rhs;
+        Field f = cubic_round(x, y, z);
+        *this = f;
+        return *this;
+    }
+
+    friend Field operator*(Field lhs, const double &rhs)
+    {
+        lhs *= rhs;
+        return lhs;
+    }
+
+    Field &operator/=(const double &rhs)
+    {
+        double x = this->x / rhs;
+        double y = this->y / rhs;
+        double z = this->z / rhs;
+        Field f = cubic_round(x, y, z);
+        *this = f;
+        return *this;
+    }
+
+    friend Field operator/(Field lhs, const double &rhs)
+    {
+        lhs /= rhs;
+        return lhs;
+    }
+
+    int operator&(const Field &rhs)
+    {
+        return (abs(this->x - rhs.x) + abs(this->y - rhs.y) + abs(this->z - rhs.z)) / 2;
+    }
+
+    friend std::ostream &operator<<(std::ostream &os, const Field &rhs);
+
+    Field get_neighbor(Uint8 direction) const;
+
+    Point field_to_point(const Layout *layout) const;
+
+    std::vector<Point> field_to_polygon_normalized(const Layout *layout) const;
+
+    std::vector<Point> field_to_polygon(const Layout *layout) const;
+
+    static Field cubic_round(double x, double y, double z);
+
+    static Field hex_direction(Uint8 direction);
 };
 
 // from upper right corner
-const std::vector<Field> hex_directions = {
-        Field(1, 0, -1), Field(0, 1, -1), Field(-1, 1, 0), Field(-1, 0, 1), Field(-1, 1, 0)
-};
+const std::vector<Field> hex_directions = {Field(1, 0, -1), Field(0, 1, -1), Field(-1, 1, 0), Field(-1, 0, 1),
+                                           Field(-1, 1, 0)};
 
-Field hex_direction(Uint8 direction);
+Point field_corner_offset(Uint8 corner, const Layout *layout);
 
 namespace std
 {
@@ -134,85 +317,5 @@ namespace std
         }
     };
 }
-
-Field hex_neighbor(Uint8 direction, Field f);
-
-Field cubic_round(double x, double y, double z);
-
-int cubic_distance(Field a, Field b);
-
-bool operator==(Field left, Field right);
-
-bool operator!=(Field left, Field right);
-
-Field operator+(Field left, Field right);
-
-Field operator-(Field left, Field right);
-
-Field operator*(Field left, Field right);
-
-Field operator/(Field left, Field right);
-#endif
-
-Point field_to_point(const Field f, const Layout *layout);
-
-Field point_to_field(Point point, const Layout *layout);
-
-Point field_corner_offset(Uint8 corner, const Layout *layout);
-
-std::vector<Point> field_to_polygon_normalized(const Field field, const Layout *layout);
-
-std::vector<Point> field_to_polygon(const Field field, const Layout *layout);
-
-
-#ifndef Grid
-
-class Grid
-{
-protected:
-    std::unordered_set<Field> *fields;
-    Layout *layout;
-    Field marker;
-    bool panning;
-    bool on_rectangle(SDL_Rect *rect);
-public:
-    Grid(Layout *layout_)
-            : layout(layout_), marker(0, 0, 0)
-    {
-        this->fields = new std::unordered_set<Field>();
-    };
-
-    ~Grid()
-    {
-        delete this->fields;
-    }
-
-    std::unordered_set<Field> *get_fields() { return this->fields; }
-
-    void move(SDL_Point move);
-
-    void update_marker();
-
-    virtual bool render(SDL_Renderer *renderer) = 0;
-
-    void handle_event(SDL_Event *event);
-
-    void update_box(int x, int y);
-};
-
-#endif
-
-#ifndef HexagonGrid
-class HexagonGrid : public Grid
-{
-private:
-    Sint16 radius;
-public:
-    HexagonGrid(Sint16 grid_radius, Layout *layout);
-
-    bool render(SDL_Renderer *renderer);
-
-    Sint16 get_radius() { return radius * layout->size; }
-};
 
 #endif

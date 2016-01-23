@@ -1,3 +1,2 @@
-
-add_executable(Bob Main.cpp Main.hpp Grid.cpp Grid.hpp Gameplay.cpp Gameplay.hpp Gui.hpp Gui.cpp)
+add_executable(Bob Bob.cpp Bob.hpp Grid.cpp Grid.hpp Gameplay.cpp Gameplay.hpp Gui.hpp Gui.cpp Events.cpp Exceptions.hpp)
 target_link_libraries(Bob ${SDL2_LIB} ${SDL2_GFX_LIB} ${SDL2_TTF_LIB} ${Boost_LIBRARIES})
