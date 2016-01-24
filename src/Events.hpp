@@ -1,27 +1,26 @@
-#include <SDL2/SDL.h>
-#include <boost/uuid/uuid.hpp>
-#include "Grid.hpp"
-#include "Gameplay.hpp"
-
 #ifndef _EVENTS_H
 #define _EVENTS_H
+
+#include <SDL2/SDL.h>
+#include <boost/uuid/uuid.hpp>
+
+enum Bob_Event
+{
+    BOB_NEXTTURNEVENT,
+    BOB_FIELDUPDATEEVENT
+};
 
 class EventContext
 {
 public:
-    enum Bob_Event
-    {
-        Bob_NextTurnEvent,
-        Bob_FieldUpdateEvent
-    };
-
-    EventContext(Uint32 num_events)
+    EventContext()
             : base_event(register_events(num_events)) { }
 
-    Uint32 get_event(Bob_Event event);
+    const Uint32 base_event;
 
 private:
-    const Uint32 base_event;
+
+    static const int num_events = 2;
 
     static Uint32 register_events(Uint32 n);
 };
@@ -46,7 +45,9 @@ struct NextTurn
 
 struct FieldUpdate
 {
-    FieldMeta *field;
+    Sint16 x;
+    Sint16 y;
+    Sint16 z;
 };
 
 #endif

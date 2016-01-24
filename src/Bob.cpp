@@ -21,13 +21,13 @@ void Game::handle_event(SDL_Event *event)
             }
             break;
         case SDL_MOUSEMOTION:
-            grid->handle_event(event);
+            grid->handle_event(event, this->event_context);
             break;
         case SDL_MOUSEWHEEL:
-            grid->handle_event(event);
+            grid->handle_event(event, this->event_context);
             break;
         case SDL_MOUSEBUTTONDOWN:
-            grid->handle_event(event);
+            grid->handle_event(event, this->event_context);
             break;
         case SDL_KEYDOWN:
             switch (event->key.keysym.sym)
@@ -73,6 +73,14 @@ void Game::handle_event(SDL_Event *event)
                     break;
             }
             break;
+        case SDL_USEREVENT:
+            switch (event->type - this->event_context->base_event)
+            {
+                case BOB_NEXTTURNEVENT:
+                    this->grid->handle_event(event, this->event_context);
+                default:
+                    break;
+            }
         default:
             break;
     }
@@ -86,15 +94,15 @@ int Game::game_loop()
     Uint32 frame_counter = 0;
     while (!this->quit)
     {
-        if (move_timer->get_timer() > 16)
+        if (this->move_timer->get_timer() > 16)
         {
-            move_timer->reset_timer();
+            this->move_timer->reset_timer();
             SDL_Point move_by = {(this->move[1] - this->move[3]) * 20, (this->move[0] - this->move[2]) * 20};
             this->grid->move(move_by);
         }
-        if (frame_timer->get_timer() > 255)
+        if (this->frame_timer->get_timer() > 255)
         {
-            fps = frame_counter / (frame_timer->reset_timer() / 1000.0);
+            fps = frame_counter / (this->frame_timer->reset_timer() / 1000.0);
             frame_counter = 0;
             this->test_box->load_text(std::to_string(fps));
         }

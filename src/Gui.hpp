@@ -1,3 +1,6 @@
+#ifndef _GUI_H
+#define _GUI_H
+
 #include "SDL2/SDL.h"
 #include "SDL2/SDL_ttf.h"
 #include <stdio.h>
@@ -9,9 +12,6 @@
 #include "Exceptions.hpp"
 #include "Gameplay.hpp"
 #include "Events.hpp"
-
-#ifndef _GUI_H
-#define _GUI_H
 
 SDL_Color operator!(const SDL_Color &color);
 

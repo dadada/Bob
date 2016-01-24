@@ -22,8 +22,3 @@ Uint32 EventContext::register_events(Uint32 num_events)
 {
     return SDL_RegisterEvents(num_events);
 }
-
-Uint32 EventContext::get_event(Bob_Event event)
-{
-    return this->base_event + event;
-}

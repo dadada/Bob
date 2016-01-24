@@ -1,8 +1,8 @@
-#include <stdexcept>
-#include <SDL2/SDL_ttf.h>
-
 #ifndef BOB_EXCEPTIONS_H
 #define BOB_EXCEPTIONS_H
+
+#include <stdexcept>
+#include <SDL2/SDL_ttf.h>
 
 class SDL_Exception : public std::runtime_error
 {

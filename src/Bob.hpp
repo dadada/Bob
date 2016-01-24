@@ -1,3 +1,6 @@
+#ifndef _BOB_H
+#define _BOB_H
+
 #include <iostream>
 #include <string>
 #include <utility>
@@ -8,9 +11,6 @@
 #include "Gameplay.hpp"
 #include "Events.hpp"
 #include "Gui.hpp"
-
-#ifndef _BOB_H
-#define _BOB_H
 
 const int SCREEN_WIDTH = 800;
 const int SCREEN_HEIGTH = 600;
@@ -23,7 +23,7 @@ class Game
 public:
     Game(SDL_Rect *window_dimensions, Sint16 size)
     {
-        this->event_context = new EventContext(4);
+        this->event_context = new EventContext();
         this->layout = new Layout(pointy_orientation, size,
                                   {window_dimensions->w / 2, window_dimensions->h / 2},
                                   {0, 0, window_dimensions->w - SIDEBAR_WIDTH, window_dimensions->h});

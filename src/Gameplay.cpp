@@ -1,5 +1,129 @@
 #include "Gameplay.hpp"
 
+SDL_Point operator+(SDL_Point left, SDL_Point right)
+{
+    return {left.x + right.x, left.y + right.y};
+}
+
+SDL_Point operator-(SDL_Point left, SDL_Point right)
+{
+    return {left.x - right.x, left.y - right.y};
+}
+
+SDL_Point operator*(SDL_Point left, SDL_Point right)
+{
+    return {left.x * right.x, left.y * right.y};
+}
+
+SDL_Point operator/(SDL_Point left, SDL_Point right)
+{
+    return {(left.x / right.x), (left.x / right.y)};
+}
+
+SDL_Point operator*(double left, SDL_Point right)
+{
+    int x = (int) (left * right.x);
+    int y = (int) (left * right.y);
+    return {x, y};
+}
+
+SDL_Point operator*(SDL_Point left, double right)
+{
+    return right * left;
+}
+
+SDL_Point operator/(SDL_Point left, double right)
+{
+    return (1 / right) * left;
+}
+
+double operator!(SDL_Point left)
+{
+    double length = std::sqrt(left.x * left.x + left.y * left.y);
+    return length;
+}
+
+Field Field::cubic_round(double x, double y, double z)
+{
+    Sint8 round_x = (Sint8) std::round(x);
+    Sint8 round_y = (Sint8) std::round(y);
+    Sint8 round_z = (Sint8) std::round(z);
+    double x_err = std::abs(round_x - x);
+    double y_err = std::abs(round_y - y);
+    double z_err = std::abs(round_z - z);
+    if (x_err > y_err && x_err > z_err)
+    {
+        round_x = -round_y - round_z;
+    } else if (y_err > z_err)
+    {
+        round_y = -round_x - round_z;
+    } else
+    {
+        round_z = -round_x - round_y;
+    }
+    return Field(round_x, round_y, round_z);
+}
+
+
+Field Field::hex_direction(Uint8 direction)
+{
+    assert (0 <= direction && direction <= 5);
+    return hex_directions[direction];
+}
+
+Field Field::get_neighbor(Uint8 direction) const
+{
+    return hex_direction(direction) + *this;
+}
+
+Point Field::field_to_point(const Layout *layout) const
+{
+    const Orientation m = layout->orientation;
+    double x = (m.f0 * this->x + m.f1 * this->y) * layout->size;
+    double y = (m.f2 * this->x + m.f3 * this->y) * layout->size;
+    return {x + layout->origin.x, y + layout->origin.y};
+}
+
+Field Point::point_to_field(const Layout *layout) const
+{
+    const Orientation m = layout->orientation;
+    double rel_x = (this->x - layout->origin.x) / layout->size;
+    double rel_y = (this->y - layout->origin.y) / layout->size;
+    double x = m.b0 * rel_x + m.b1 * rel_y;
+    double y = m.b2 * rel_x + m.b3 * rel_y;
+    return Field::cubic_round(x, y, -x - y);
+}
+
+Point field_corner_offset(Uint8 corner, const Layout *layout)
+{
+    double angle = 2.0 * M_PI * (corner + layout->orientation.start_angle) / 6;
+    double x = (layout->size * cos(angle));
+    double y = (layout->size * sin(angle));
+    return {x, y};
+}
+
+std::vector<Point> Field::field_to_polygon(const Layout *layout) const
+{
+    std::vector<Point> corners = this->field_to_polygon_normalized(layout);
+    Point center = this->field_to_point(layout);
+    for (Point &p : corners)
+    {
+        p = p + center;
+    }
+    return corners;
+}
+
+std::vector<Point> Field::field_to_polygon_normalized(const Layout *layout) const
+{
+    std::vector<Point> corners;
+    for (uint8_t i = 0; i < 6; i++)
+    {
+        Point offset = field_corner_offset(i, layout);
+        corners.push_back(offset);
+    }
+    return corners;
+}
+
 void FieldMeta::render(SDL_Renderer *renderer, Layout *layout)
 {
     Point precise_location = this->field.field_to_point(layout);
@@ -23,37 +147,34 @@ void FieldMeta::render(SDL_Renderer *renderer, Layout *layout)
     inverse.g = (Uint8) (0xff - color.g);
     inverse.b = (Uint8) (0xff - color.b);
     inverse.a = 0xff;
-
-    Uint16 resource_size = (Uint16) (layout->size / 3);
-    if (this->resources_base.circle > 0)
-    {
-        circleRGBA(renderer, (Sint16) (location.x), (Sint16) (location.y), (Sint16) (resource_size), inverse.r,
-                   inverse.g, inverse.b, inverse.a);
-    }
+    double resource_size = layout->size / 4;
     if (this->resources_base.triangle > 0)
     {
-        static const SDL_Point trigon[] = {{-1, 1},
-                                           {1,  1},
-                                           {0,  -1}};
+        static const SDL_Point trigon[] = {{0,  -1},
+                                           {-1, 1},
+                                           {1,  1}};
         for (int i = 0; i < 3; i++)
         {
-            vx[i] = (Sint16) (location.x + (trigon[i].x) * resource_size);
-            vy[i] = (Sint16) (location.y + (trigon[i].y) * resource_size);
+            vx[i] = (Sint16) (location.x + (trigon[i].x * resource_size));
+            vy[i] = (Sint16) (location.y + (trigon[i].y * resource_size));
         }
         trigonRGBA(renderer, vx[0], vy[0], vx[1], vy[1], vx[2], vy[2], inverse.r, inverse.g, inverse.b, inverse.a);
     }
-
+    if (this->resources_base.circle > 0)
+    {
+        circleRGBA(renderer, (Sint16) (location.x), Sint16(location.y), (Sint16) resource_size, inverse.r, inverse.g,
+                   inverse.b, inverse.a);
+    }
     if (this->resources_base.square > 0)
     {
-
         static const SDL_Point square[] = {{-1, -1},
                                            {-1, 1},
                                            {1,  1},
                                            {1,  -1}};
         for (int i = 0; i < 4; i++)
         {
-            vx[i] = (Sint16) (location.x + (square[i].x) * resource_size);
-            vy[i] = (Sint16) (location.y + (square[i].y) * resource_size);
+            vx[i] = (Sint16) (location.x + square[i].x * resource_size);
+            vy[i] = (Sint16) (location.y + square[i].y * resource_size);
         }
         polygonRGBA(renderer, vx, vy, 4, inverse.r, inverse.g, inverse.b, inverse.a);
     }
@@ -190,9 +311,16 @@ bool Player::fight(FieldMeta *field)
     return false;
 }
 
-void FieldMeta::handle_event(const SDL_Event *event)
+void FieldMeta::handle_event(const SDL_Event *event, EventContext *context)
 {
-    this->regenerate_resources();
+    switch (event->type - context->base_event)
+    {
+        case BOB_FIELDUPDATEEVENT:
+            this->regenerate_resources();
+            break;
+        default:
+            break;
+    }
 }
 
 bool HexagonGrid::render(SDL_Renderer *renderer)
@@ -222,15 +350,16 @@ bool HexagonGrid::render(SDL_Renderer *renderer)
     return true;
 }
 
-void Grid::handle_event(SDL_Event *event)
+void Grid::handle_event(SDL_Event *event, EventContext *context)
 {
-    if (event->type == SDL_MOUSEWHEEL)
+    SDL_Point mouse = {0, 0};
+    SDL_GetMouseState(&mouse.x, &mouse.y);
+    int scroll = this->layout->size / 10 * event->wheel.y;
+    double old_size = this->layout->size;
+    SDL_Point old_origin = this->layout->origin;
+    switch (event->type)
     {
-        SDL_Point mouse = {0, 0};
-        SDL_GetMouseState(&mouse.x, &mouse.y);
-        int scroll = this->layout->size / 10 * event->wheel.y;
-        double old_size = this->layout->size;
-        SDL_Point old_origin = this->layout->origin;
+        case SDL_MOUSEWHEEL:
         if (old_size + scroll < 10)
         {
             this->layout->size = 10;
@@ -244,9 +373,8 @@ void Grid::handle_event(SDL_Event *event)
             this->layout->size += scroll;
         }
         this->move(((1.0 - (double) this->layout->size / old_size) * (mouse - old_origin)));
-    }
-    if (event->type == SDL_MOUSEMOTION)
-    {
+            break;
+        case SDL_MOUSEMOTION:
         if (this->panning)
         {
             SDL_Point mouse = {0, 0};
@@ -258,10 +386,19 @@ void Grid::handle_event(SDL_Event *event)
             this->move(mouse - p);
         }
         this->update_marker();
-    }
-    if (event->type == SDL_MOUSEBUTTONDOWN && event->button.button == SDL_BUTTON_MIDDLE)
-    {
-        this->panning = !(this->panning);
+            break;
+        case SDL_MOUSEBUTTONDOWN:
+            switch (event->button.button)
+            {
+                case SDL_BUTTON_MIDDLE:
+                    this->panning = !(this->panning);
+                    break;
+                default:
+                    break;
+            }
+            break;
+        default:
+            break;
     }
 }
 
