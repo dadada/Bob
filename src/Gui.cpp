@@ -1,65 +1,50 @@
 #include "Gui.hpp"
 
-TTF_Font *load_font_from_file(std::string path_to_file)
+SDL_Color operator!(const SDL_Color &color)
 {
-    TTF_Font *font = TTF_OpenFont(path_to_file.c_str(), 12); // what about memory leaks?
+    Uint8 r = (Uint8) 0xff - color.r;
+    Uint8 g = (Uint8) 0xff - color.g;
+    Uint8 b = (Uint8) 0xff - color.b;
+    Uint8 a = (Uint8) 0xff - color.a;
+    return {r, g, b, a};
+}
+
+TTF_Font *load_font_from_file(std::string path_to_file, int size)
+{
+    TTF_Font *font = TTF_OpenFontIndex(path_to_file.c_str(), size, 0);
     if (font == nullptr)
     {
-        std::cerr << "Failed to load TTF!" << TTF_GetError() << std::endl;
-        return font;
+        throw SDL_TTFException();
     }
     return font;
 }
 
-bool TextInfoBox::load_text(std::string text)
+bool TextBox::load_text(std::string text)
 {
-    SDL_DestroyTexture(this->texture);
-    SDL_Surface *surface = TTF_RenderUTF8_Solid(this->font, text.c_str(), color);
-    if (surface == nullptr)
+    SDL_Surface *surface = TTF_RenderUTF8_Solid(this->font, text.c_str(), {0xff, 0xff, 0xff, 0xff});
+    if (surface == nullptr || TTF_SizeUTF8(this->font, text.c_str(), &(this->dimensions.w), &(this->dimensions.h)))
     {
-        std::cerr << "Unable to render text to surface! " << TTF_GetError() << std::endl;
+        SDL_FreeSurface(surface);
+        throw SDL_TTFException();
     }
     else if (surface->w > this->dimensions.w || surface->h > this->dimensions.h)
     {
-        std::cerr << "Overfull TextBox!" << SDL_GetError() << std::endl;
+        std::cerr << "Overfull TextBox!" << std::endl;
     }
-    else
+    if (this->texture != nullptr)
     {
-        this->create_texture_from_surface(surface);
+        SDL_DestroyTexture(this->texture);
     }
-    SDL_FreeSurface(surface);
-    return (this->texture != nullptr);
-}
-
-
-bool InfoBox::create_texture_from_surface(SDL_Surface *surface)
-{
     SDL_SetRenderTarget(this->renderer->get_renderer(), this->texture);
     this->texture = SDL_CreateTextureFromSurface(this->renderer->get_renderer(), surface);
+    SDL_FreeSurface(surface);
     if (this->texture == nullptr)
     {
-        std::cerr << "Unable to render texture from surface!" << SDL_GetError() << std::endl;
+        SDL_DestroyTexture(this->texture);
+        throw SDL_TextureException();
     }
     SDL_SetRenderTarget(this->renderer->get_renderer(), nullptr); // reset the render target
     return (this->texture != nullptr);
-}
-
-bool InfoBox::render(SDL_Renderer *renderer, const SDL_Rect target)
-{
-    if (this->visible)
-    {
-        if (!SDL_RenderCopy(renderer, this->texture, &(this->dimensions), &target))
-        {
-            std::cerr << "Failed to render TextBox Texture!" << SDL_GetError() << std::endl;
-            return false;
-        }
-    }
-    return true;
-}
-
-void logSDLError(std::ostream &os, const std::string &msg)
-{
-    os << msg << " error:" << SDL_GetError() << std::endl;
 }
 
 SDL_Point Window::toggle_fullscreen()
@@ -111,17 +96,17 @@ void Renderer::present()
     SDL_RenderPresent(this->renderer);
 }
 
-void TextInfoBox::handle_event(const SDL_Event *event)
+void TextBox::handle_event(const SDL_Event *event, EventContext *context)
 {
 }
 
-void SideBar::handle_event(const SDL_Event *event)
+void FieldBox::handle_event(const SDL_Event *event, EventContext *context)
 {
     std::ostringstream output;
     Cluster *cluster = this->field->get_grid()->get_cluster(this->field);
     Resource cluster_resources = this->field->get_grid()->get_resources_of_cluster(cluster);
     Resource field_resources = this->field->get_resources();
-    MarkerUpdate *update = (MarkerUpdate *) event->user.data1;
+    FieldUpdate *update = (FieldUpdate *) event->user.data1;
 /*    switch (event->type)
     {
         case (BOB_FIELD_UPDATE_EVENT):
@@ -139,36 +124,41 @@ void SideBar::handle_event(const SDL_Event *event)
     }*/
 }
 
-void FieldInfoBox::handle_event(const SDL_Event *event)
+void ButtonInfoBox::handle_event(const SDL_Event *event, EventContext *context)
 {
-}
-
-void ButtonInfoBox::handle_event(const SDL_Event *event)
-{
-    switch (event->type)
-    {
-        case (SDL_MOUSEBUTTONDOWN):
-            this->upgrade_box->set_visible(!(this->upgrade_box->get_visible()));
-            break;
-        default:
-            break;
-    }
 };
 
-void UpgradeInfoBox::handle_event(const SDL_Event *event)
+void UpgradeBox::handle_event(const SDL_Event *event, EventContext *context)
 {
-    TextInfoBox::handle_event(event);
 }
 
-void SideBar::render(SDL_Renderer *renderer)
+void Box::handle_event(const SDL_Event *event, EventContext *context)
 {
-    SDL_Rect f_dimensions = this->field_info->get_dimensions();
-    this->field_info->render(renderer, {this->dimensions.x, this->dimensions.y, f_dimensions.w, f_dimensions.h});
-    for (auto &elem : *upgrades_list)
+}
+
+void Container::render(Renderer *renderer)
+{
+    for (auto info_box : this->elements)
     {
-        f_dimensions = elem->get_dimensions();
-        elem->render(renderer, {this->dimensions.x, this->dimensions.y, f_dimensions.w, f_dimensions.h});
+        info_box->render(renderer);
     }
-    f_dimensions = this->upgrade_info->get_dimensions();
-    this->upgrade_info->render(renderer, {this->dimensions.x, this->dimensions.y, f_dimensions.w, f_dimensions.h});
+}
+
+void Box::render(Renderer *ext_renderer)
+{
+    if (this->visible && this->texture != nullptr)
+    {
+        if (SDL_RenderCopy(ext_renderer->get_renderer(), this->texture, nullptr, &(this->dimensions)) < 0)
+        {
+            throw SDL_RendererException();
+        }
+    }
+}
+
+void Container::set_visible(bool visible)
+{
+    for (auto box : this->elements)
+    {
+        box->set_visible(visible);
+    }
 }

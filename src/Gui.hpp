@@ -13,7 +13,7 @@
 #ifndef _GUI_H
 #define _GUI_H
 
-void logSDLError(std::ostream &os, const std::string &msg);
+SDL_Color operator!(const SDL_Color &color);
 
 class Window
 {
@@ -78,56 +78,44 @@ private:
     SDL_Renderer *renderer;
 };
 
-class InfoBox
+class Box
 {
 public:
-    InfoBox(Renderer *renderer_, SDL_Rect dimensions_, SDL_Color color_)
+    Box(Renderer *renderer_, SDL_Rect dimensions_, SDL_Color color_)
             : renderer(renderer_), color(color_), dimensions(dimensions_)
     {
-        this->texture = SDL_CreateTexture(renderer->get_renderer(), SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET,
-                                          dimensions.w, dimensions.h);
-        if (this->texture == nullptr)
-        {
-            SDL_DestroyTexture(texture);
-            throw SDL_TextureException();
-        }
+        this->texture = nullptr;
         this->visible = false;
     }
 
-    ~InfoBox()
+    ~Box()
     {
-        SDL_DestroyTexture(texture);
+        SDL_DestroyTexture(this->texture);
     }
 
-    virtual void handle_event(const SDL_Event *event) const = 0;
+    virtual void handle_event(const SDL_Event *event, EventContext *context);
 
-    bool render(SDL_Renderer *renderer, const SDL_Rect target);
+    virtual void render(Renderer *renderer);
 
     void set_visible(bool visibility) { this->visible = visibility; }
-
-    bool get_visible() { return this->visible; }
-
-    SDL_Renderer *get_renderer() { return this->renderer->get_renderer(); }
 
     SDL_Rect get_dimensions() { return this->dimensions; }
 
 protected:
-    SDL_Rect dimensions;
-    SDL_Texture *texture; // buffered texture
     Renderer *renderer;
+    SDL_Texture *texture;
+    SDL_Rect dimensions;
     SDL_Color color;
     bool visible;
-
-    bool create_texture_from_surface(SDL_Surface *surface);
 };
 
-class TextInfoBox : public InfoBox
+class TextBox : public Box
 {
 public:
-    TextInfoBox(Renderer *renderer, SDL_Rect dimensions, SDL_Color color, TTF_Font *font_)
-            : InfoBox(renderer, dimensions, color), font(font_) { }
+    TextBox(Renderer *renderer, SDL_Rect dimensions, SDL_Color color, TTF_Font *font_)
+            : Box(renderer, dimensions, color), font(font_) { }
 
-    virtual void handle_event(const SDL_Event *event);
+    virtual void handle_event(const SDL_Event *event, EventContext *context);
 
     bool load_text(std::string text);
 
@@ -135,60 +123,61 @@ protected:
     TTF_Font *font;
 };
 
-class FieldInfoBox : public TextInfoBox
+class FieldBox : public TextBox
 {
 public:
-    FieldInfoBox(Renderer *renderer, SDL_Rect dimensions, FieldMeta *field_, SDL_Color color, TTF_Font *font)
-            : TextInfoBox(renderer, dimensions, color, font), field(field_) { }
+    FieldBox(Renderer *renderer, SDL_Rect dimensions, SDL_Color color, TTF_Font *font, FieldMeta *field_)
+            : TextBox(renderer, dimensions, color, font), field(field_) { }
 
-    void handle_event(const SDL_Event *event);
+    void handle_event(const SDL_Event *event, EventContext *context);
 
 private:
     FieldMeta *field;
 };
 
-class UpgradeInfoBox : public TextInfoBox
+class UpgradeBox : public TextBox
 {
 public:
-    UpgradeInfoBox(Renderer *renderer, SDL_Rect dimensions, FieldMeta *field_, SDL_Color color, TTF_Font *font)
-            : TextInfoBox(renderer, dimensions, color, font) { }
+    UpgradeBox(Renderer *renderer, SDL_Rect dimensions, FieldMeta *field_, SDL_Color color, TTF_Font *font)
+            : TextBox(renderer, dimensions, color, font) { }
 
-    void handle_event(const SDL_Event *event);
+    void handle_event(const SDL_Event *event, EventContext *context);
 };
 
-class ButtonInfoBox : public TextInfoBox
+class ButtonInfoBox : public TextBox
 {
 public:
     ButtonInfoBox(Renderer *renderer, SDL_Rect dimensions, FieldMeta *field_, SDL_Color color, TTF_Font *font,
-                  UpgradeInfoBox *upgrade_box_)
-            : TextInfoBox(renderer, dimensions, color, font), upgrade_box(upgrade_box_) { }
+                  UpgradeBox *upgrade_box_)
+            : TextBox(renderer, dimensions, color, font), upgrade_box(upgrade_box_) { }
 
-    void handle_event(const SDL_Event *event);
+    void handle_event(const SDL_Event *event, EventContext *context);
 
 private:
-    UpgradeInfoBox *upgrade_box;
+    UpgradeBox *upgrade_box;
 };
 
-class SideBar
+class Container
 {
 public:
-    SideBar(Renderer *renderer, SDL_Rect dimensions_, SDL_Color color)
-            : dimensions(dimensions_)
+    Container(Window *window_, Renderer *renderer_, SDL_Rect dimensions_)
+            : window(window_), renderer(renderer_)
     {
+        this->elements = std::vector<Box *>();
     }
 
-    void handle_event(const SDL_Event *event);
+    void add(Box *box) { this->elements.push_back(box); }
 
-    void render(SDL_Renderer *renderer);
+    void render(Renderer *renderer);
+
+    void set_visible(bool visible);
 
 private:
-    SDL_Rect dimensions;
-    FieldMeta *field;
-    FieldInfoBox *field_info;
-    std::vector<ButtonInfoBox *> *upgrades_list;
-    UpgradeInfoBox *upgrade_info;
+    Window *window;
+    Renderer *renderer;
+    std::vector<Box *> elements;
 };
 
-TTF_Font *load_font_from_file(std::string path_to_file);
+TTF_Font *load_font_from_file(std::string path_to_file, int size);
 
 #endif

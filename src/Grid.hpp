@@ -280,8 +280,6 @@ struct Field
         return (abs(this->x - rhs.x) + abs(this->y - rhs.y) + abs(this->z - rhs.z)) / 2;
     }
 
-    friend std::ostream &operator<<(std::ostream &os, const Field &rhs);
-
     Field get_neighbor(Uint8 direction) const;
 
     Point field_to_point(const Layout *layout) const;
@@ -316,6 +314,12 @@ namespace std
             return hx ^ (hy + 0x9e3779b9 + (hx << 6) + (hx >> 2));
         }
     };
+}
+
+inline std::ostream &operator<<(std::ostream &os, const Field &rhs)
+{
+    os << "(" << rhs.x << "," << rhs.y << ",";
+    return os;
 }
 
 #endif

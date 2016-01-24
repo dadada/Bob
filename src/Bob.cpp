@@ -92,22 +92,18 @@ int Game::game_loop()
             SDL_Point move_by = {(this->move[1] - this->move[3]) * 20, (this->move[0] - this->move[2]) * 20};
             this->grid->move(move_by);
         }
-        if (frame_timer->get_timer() > 1000.0)
+        if (frame_timer->get_timer() > 255)
         {
             fps = frame_counter / (frame_timer->reset_timer() / 1000.0);
             frame_counter = 0;
-            std::cout << fps << " fps" << std::endl;
+            this->test_box->load_text(std::to_string(fps));
         }
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
             this->handle_event(&event);
         }
-        this->renderer->set_draw_color({0x0, 0x0, 0x0, 0xf});
-        this->renderer->clear();
-        this->renderer->set_draw_color({0xff, 0xff, 0xff, 0xff});
         this->render();
-        this->renderer->present();
         frame_counter++;
     }
     this->renderer->clear();
@@ -116,21 +112,53 @@ int Game::game_loop()
 
 void Game::render()
 {
-    SDL_Renderer *renderer = this->renderer->get_renderer();
-    this->grid->render(renderer);
+    try
+    {
+        this->renderer->set_draw_color({0x0, 0x0, 0x0, 0x0});
+        this->renderer->clear();
+        this->grid->render(this->renderer->get_renderer());
+        this->side_bar->render(this->renderer);
+        this->renderer->present();
+    }
+    catch (const SDL_RendererException &err)
+    {
+        std::cerr << "Failed to render: " << err.what() << std::endl;
+    }
+}
+
+void init_sdl(Uint32 flags)
+{
+    if (SDL_Init(flags) != 0)
+    {
+        throw SDL_Exception("Failed to initialize SDL!");
+    }
+}
+
+void init_ttf()
+{
+    if (TTF_Init() == -1)
+    {
+        throw SDL_TTFException();
+    }
 }
 
 int main(int, char **)
 {
-    if (SDL_Init(SDL_INIT_VIDEO) != 0)
+    try
     {
-        logSDLError(std::cerr, "SDL_init");
+        init_sdl(SDL_INIT_VIDEO);
+        init_ttf();
     }
-//    register_events(4);
+    catch (const SDL_Exception &sdl_err)
+    {
+        std::cerr << sdl_err.what() << std::endl;
+        SDL_Quit();
+    }
     SDL_Rect window_dimensions = {SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGTH};
     Game *game = new Game(&window_dimensions, 6);
     int exit_status = game->game_loop();
     delete game;
+    TTF_Quit();
     SDL_Quit();
     return exit_status;
 }

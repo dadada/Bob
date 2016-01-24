@@ -15,7 +15,7 @@ void FieldMeta::render(SDL_Renderer *renderer, Layout *layout)
         vx[i] = (Sint16) polygon[i].x;
         vy[i] = (Sint16) polygon[i].y;
     }
-    if (this->owner == this->grid->get_default_player())
+    if (*(this->owner) == Player())
         color = {0x77, 0x77, 0x77, 0x77};
     filledPolygonRGBA(renderer, vx, vy, 6, color.r, color.g, color.b, 0x33);
     SDL_Color inverse;
@@ -161,7 +161,7 @@ bool Player::fight(FieldMeta *field)
     {
         return false;
     }
-    if (field->get_owner() == field->get_grid()->get_default_player()) // still to be had
+    if (*(field->get_owner()) == Player()) // still to be had
     {
         field->set_owner(this);
         return true;
@@ -323,10 +323,4 @@ void Grid::update_box(SDL_Point dimensions)
 {
     this->layout->box.w = dimensions.x;
     this->layout->box.h = dimensions.y;
-}
-
-std::ostream &operator<<(std::ostream &os, const Field &rhs)
-{
-    os << "(" << rhs.x << "," << rhs.y << ",";
-    return os;
 }

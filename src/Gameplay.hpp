@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
+#include <boost/random/mersenne_twister.hpp>
 #include <SDL2/SDL_pixels.h>
 #include <SDL2/SDL_render.h>
 #include <bitset>
@@ -152,67 +153,29 @@ const std::unordered_map<Upgrade, Resource> UPGRADE_COSTS(
         }
 );
 
-class Tagged
-{
-private:
-    boost::uuids::uuid tag;
-
-    int state;
-public:
-    // construct new
-    Tagged()
-            : tag(boost::uuids::random_generator()()), state(0) { }
-
-    // construct with state
-    explicit Tagged(int state)
-            : tag(boost::uuids::random_generator()()), state(state) { }
-
-    // clone
-    Tagged(Tagged const &rhs)
-            : tag(rhs.tag), state(rhs.state) { }
-
-    bool operator==(Tagged const &rhs) const
-    {
-        return tag == rhs.tag;
-    }
-
-    bool operator!=(Tagged const &rhs) const
-    {
-        return !(tag == rhs.tag);
-    }
-
-    int get_state() const { return state; }
-
-    void set_state(int new_state) { state = new_state; }
-
-    boost::uuids::uuid get_tag() { return tag; }
-
-    void set_tag(boost::uuids::uuid uuid_) { tag = uuid_; }
-};
-
-class Player;
-
 class FieldMeta;
 
-class Player : public Tagged
+class Player
 {
 
 public:
+    Player()
+            : name("Default Player"), uuid(boost::uuids::nil_uuid()) { }
     Player(std::string name_)
-            : name(name_), Tagged()
+            : name(name_), uuid(boost::uuids::basic_random_generator<boost::mt19937>()())
     {
         // use the last 24 bits of the tag for the color
-        boost::uuids::uuid id = get_tag();
+        boost::uuids::uuid id = this->uuid;
         uint8_t *data = id.data;
         this->color = {data[13], data[14], data[15], 0xff};
     }
 
-    SDL_Color get_color() { return color; }
+    SDL_Color get_color() { return this->color; }
 
     std::string get_name()
     {
         std::ostringstream descriptor;
-        boost::uuids::uuid id = get_tag();
+        boost::uuids::uuid id = this->uuid;
         uint8_t *data = id.data;
         Uint16 number = (data[14] << 8) | (data[15]);
         descriptor << this->name << " (" << std::hex << number << ")";
@@ -221,7 +184,15 @@ public:
 
     bool fight(FieldMeta *field);
 
+    boost::uuids::uuid get_id() { return this->uuid; }
+
+    bool operator==(const Player &rhs) const
+    {
+        return rhs.uuid == this->uuid;
+    }
+
 private:
+    boost::uuids::uuid uuid;
     SDL_Color color;
     std::string name;
 };
@@ -297,8 +268,8 @@ public:
     {
         Field f = {0, 0, 0};
         std::unordered_map<Field, FieldMeta *> fields = std::unordered_map<Field, FieldMeta *>();
-        this->default_player = new Player("Default");
-        this->marker = new FieldMeta(f, default_player);
+        this->default_player = new Player();
+        this->marker = new FieldMeta(f, this->default_player);
     };
 
     ~Grid()
@@ -307,9 +278,8 @@ public:
         {
             delete elem.second;
         }
+        delete this->default_player;
     }
-
-    Player *get_default_player() { return this->default_player; }
 
     void move(SDL_Point move);
 
@@ -332,12 +302,11 @@ public:
     FieldMeta *point_to_field(const Point p);
 
 protected:
-    Player *default_player;
     std::unordered_map<Field, FieldMeta *> fields;
     Layout *layout;
     FieldMeta *marker;
     bool panning;
-
+    Player *default_player;
     bool on_rectangle(SDL_Rect *rect);
 };
 
@@ -356,7 +325,7 @@ public:
             {
                 Sint16 z = -x - y;
                 Field new_field = {x, y, z};
-                FieldMeta *meta = new FieldMeta(new_field, default_player);
+                FieldMeta *meta = new FieldMeta(new_field, this->default_player);
                 this->fields.insert({new_field, meta});
             }
         }
@@ -373,5 +342,6 @@ public:
 private:
     Sint16 radius;
 };
+
 
 #endif

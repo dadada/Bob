@@ -6,6 +6,26 @@
 #ifndef _EVENTS_H
 #define _EVENTS_H
 
+class EventContext
+{
+public:
+    enum Bob_Event
+    {
+        Bob_NextTurnEvent,
+        Bob_FieldUpdateEvent
+    };
+
+    EventContext(Uint32 num_events)
+            : base_event(register_events(num_events)) { }
+
+    Uint32 get_event(Bob_Event event);
+
+private:
+    const Uint32 base_event;
+
+    static Uint32 register_events(Uint32 n);
+};
+
 class Timer
 {
 private:
@@ -24,16 +44,9 @@ struct NextTurn
     Uint32 time_elapsed;
 };
 
-struct MarkerUpdate
-{
-    FieldMeta *field;
-};
-
 struct FieldUpdate
 {
     FieldMeta *field;
 };
-
-Uint32 register_events(Uint32 n);
 
 #endif
