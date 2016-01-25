@@ -10,6 +10,7 @@
 #include <cmath>
 #include <vector>
 #include <assert.h>
+#include <set>
 #include <bitset>
 #include <unordered_set>
 #include <unordered_map>
@@ -187,7 +188,7 @@ struct Field
         assert(x + y + z == 0);
     }
 
-    bool operator==(const Field &rhs) const
+    inline bool operator==(const Field &rhs) const
     {
         return (this->x == rhs.x && this->y == rhs.y);
     }
@@ -306,8 +307,12 @@ struct Field
 };
 
 // from upper right corner
-const std::vector<Field> hex_directions = {Field(1, 0, -1), Field(0, 1, -1), Field(-1, 1, 0), Field(-1, 0, 1),
-                                           Field(-1, 1, 0)};
+const std::vector<Field> hex_directions = {{+1, -1, 0},
+                                           {+1, 0,  -1},
+                                           {0,  +1, -1},
+                                           {-1, +1, 0},
+                                           {-1, 0,  +1},
+                                           {0,  -1, +1}};
 
 Point field_corner_offset(Uint8 corner, const Layout *layout);
 
@@ -492,9 +497,7 @@ public:
     std::string get_name()
     {
         std::ostringstream descriptor;
-        boost::uuids::uuid id = this->uuid;
-        uint8_t *data = id.data;
-        Uint16 number = (data[14] << 8) | (data[15]);
+        int number = (this->uuid.data[0] << 8) | this->uuid.data[1];
         descriptor << this->name << " (" << std::hex << number << ")";
         return descriptor.str();
     }
@@ -503,9 +506,14 @@ public:
 
     boost::uuids::uuid get_id() { return this->uuid; }
 
-    bool operator==(const Player &rhs) const
+    inline bool operator==(const Player &rhs) const
     {
-        return rhs.uuid == this->uuid;
+        return this->uuid == rhs.uuid;
+    }
+
+    inline bool operator!=(const Player &rhs) const
+    {
+        return !(*this == rhs);
     }
 
 private:
@@ -521,8 +529,8 @@ class HexagonGrid;
 class FieldMeta
 {
 public:
-    FieldMeta(Field field_, Player *owner_)
-            : field(field_), owner(owner_)
+    FieldMeta(HexagonGrid *grid_, Field field_, Player *owner_)
+            : grid(grid_), field(field_), owner(owner_)
     {
         this->upgrades = 0;
         static std::random_device rd;
@@ -533,6 +541,7 @@ public:
         this->resources_base.square = distro(rng);
         this->offense = 1;
         this->defense = 1;
+        this->regenerate_resources();
     }
 
     HexagonGrid *get_grid() { return this->grid; }
@@ -559,7 +568,7 @@ public:
 
     bool upgrade(Upgrade upgrade);
 
-    void handle_event(const SDL_Event *event, EventContext *context);
+    void handle_event(const SDL_Event *event);
 
     FieldMeta *get_neighbor(Uint8 direction);
 
@@ -576,20 +585,32 @@ private:
 
 typedef std::unordered_set<FieldMeta *> Cluster;
 
-class Grid
+class HexagonGrid
 {
-
 public:
-    Grid(Layout *layout_)
-            : layout(layout_)
+    HexagonGrid(Sint16 grid_radius, Layout *layout_)
+            : layout(layout_), radius(grid_radius)
     {
-        Field f = {0, 0, 0};
         std::unordered_map<Field, FieldMeta *> fields = std::unordered_map<Field, FieldMeta *>();
         this->default_player = new Player();
-        this->marker = new FieldMeta(f, this->default_player);
-    };
+        // first lower half, then upper half
+        Field new_field = {0, 0, 0};
+        for (Sint16 x = -grid_radius; x <= grid_radius; x++)
+        {
+            Sint16 y_l = (-grid_radius > -x - grid_radius) ? -grid_radius : -x - grid_radius;
+            Sint16 y_u = (grid_radius < -x + grid_radius) ? grid_radius : -x + grid_radius;
+            for (Sint16 y = y_l; y <= y_u; y++)
+            {
+                Sint16 z = -x - y;
+                new_field = {x, y, z};
+                FieldMeta *meta = new FieldMeta(this, new_field, this->default_player);
+                this->fields.insert({new_field, meta});
+            }
+        }
+        this->marker = new FieldMeta(this, new_field, this->default_player);
+    }
 
-    ~Grid()
+    ~HexagonGrid()
     {
         for (auto const &elem : this->fields)
         {
@@ -598,65 +619,36 @@ public:
         delete this->default_player;
     }
 
-    void move(SDL_Point move);
-
-    void update_marker();
-
-    virtual bool render(SDL_Renderer *renderer) { return false; };
-
-    void handle_event(SDL_Event *event, EventContext *context);
-
-    void update_box(SDL_Point dimensions);
-
-    Resource get_resources_of_cluster(const Cluster *cluster);
-
-    virtual FieldMeta *get_neighbor(FieldMeta *field, Uint8 direction) = 0;
-
-    virtual Cluster *get_cluster(FieldMeta *field, Cluster *visited = nullptr) = 0;
-
-    Resource consume_resources_of_cluster(Cluster *cluster, Resource costs);
-
-    FieldMeta *point_to_field(const Point p);
-
-protected:
-    std::unordered_map<Field, FieldMeta *> fields;
-    Layout *layout;
-    FieldMeta *marker;
-    bool panning;
-    Player *default_player;
-    bool on_rectangle(SDL_Rect *rect);
-};
-
-class HexagonGrid : public Grid
-{
-public:
-    HexagonGrid(Sint16 grid_radius, Layout *layout)
-            : Grid(layout), radius(grid_radius)
-    {
-        // first lower half, then upper half
-        for (Sint16 x = -grid_radius; x <= grid_radius; x++)
-        {
-            Sint16 y_l = (-grid_radius > -x - grid_radius) ? -grid_radius : -x - grid_radius;
-            Sint16 y_u = (grid_radius < -x + grid_radius) ? grid_radius : -x + grid_radius;
-            for (Sint16 y = y_l; y <= y_u; y++)
-            {
-                Sint16 z = -x - y;
-                Field new_field = {x, y, z};
-                FieldMeta *meta = new FieldMeta(new_field, this->default_player);
-                this->fields.insert({new_field, meta});
-            }
-        }
-    }
-
     FieldMeta *get_neighbor(FieldMeta *field, Uint8 direction);
 
-    Cluster *get_cluster(FieldMeta *field, Cluster *visited = nullptr);
+    Cluster get_cluster(FieldMeta *field);
 
     bool render(SDL_Renderer *renderer);
 
     Sint16 get_radius() { return radius * layout->size; }
 
+    void move(SDL_Point move);
+
+    void update_marker();
+
+    void update_dimensions(SDL_Point dimensions);
+
+    Resource get_resources_of_cluster(Cluster *cluster);
+
+    Resource consume_resources_of_cluster(Cluster *cluster, Resource costs);
+
+    FieldMeta *point_to_field(const Point p);
+
+    void handle_event(SDL_Event *event);
+
 private:
+    std::unordered_map<Field, FieldMeta *> fields;
+    Layout *layout;
+    FieldMeta *marker;
+    bool panning;
+    Player *default_player;
+
+    bool on_rectangle(SDL_Rect *rect);
     Sint16 radius;
 };
 

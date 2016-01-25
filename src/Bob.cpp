@@ -2,6 +2,7 @@
 
 void Game::handle_event(SDL_Event *event)
 {
+    static SDL_Point window_size;
     switch (event->type)
     {
         case (SDL_QUIT):
@@ -13,7 +14,7 @@ void Game::handle_event(SDL_Event *event)
                 switch (event->window.event)
                 {
                     case SDL_WINDOWEVENT_SIZE_CHANGED:
-                        this->grid->update_box({event->window.data1, event->window.data2});
+                        this->grid->update_dimensions({event->window.data1, event->window.data2});
                         break;
                     default:
                         break;
@@ -21,13 +22,13 @@ void Game::handle_event(SDL_Event *event)
             }
             break;
         case SDL_MOUSEMOTION:
-            grid->handle_event(event, this->event_context);
+            grid->handle_event(event);
             break;
         case SDL_MOUSEWHEEL:
-            grid->handle_event(event, this->event_context);
+            grid->handle_event(event);
             break;
         case SDL_MOUSEBUTTONDOWN:
-            grid->handle_event(event, this->event_context);
+            grid->handle_event(event);
             break;
         case SDL_KEYDOWN:
             switch (event->key.keysym.sym)
@@ -45,7 +46,9 @@ void Game::handle_event(SDL_Event *event)
                     this->move[3] = true;
                     break;
                 case SDLK_f:
-                    this->grid->update_box(this->window->toggle_fullscreen());
+                    window_size = this->window->toggle_fullscreen();
+                    this->grid->update_dimensions(window_size);
+                    this->side_bar->update_dimensions(window_size);
                     break;
                 case SDLK_ESCAPE:
                     this->quit = true;
@@ -73,15 +76,13 @@ void Game::handle_event(SDL_Event *event)
                     break;
             }
             break;
-        case SDL_USEREVENT:
-            switch (event->type - this->event_context->base_event)
-            {
-                case BOB_NEXTTURNEVENT:
-                    this->grid->handle_event(event, this->event_context);
-                default:
-                    break;
-            }
         default:
+            if (event->type == BOB_MARKERUPDATE || event->type == BOB_NEXTTURNEVENT ||
+                event->type == BOB_FIELDUPDATEEVENT)
+            {
+                this->grid->handle_event(event);
+                this->side_bar->handle_event(event);
+            }
             break;
     }
 }
@@ -94,7 +95,7 @@ int Game::game_loop()
     Uint32 frame_counter = 0;
     while (!this->quit)
     {
-        if (this->move_timer->get_timer() > 16)
+        if (this->move_timer->get_timer() > 1)
         {
             this->move_timer->reset_timer();
             SDL_Point move_by = {(this->move[1] - this->move[3]) * 20, (this->move[0] - this->move[2]) * 20};
@@ -163,7 +164,7 @@ int main(int, char **)
         SDL_Quit();
     }
     SDL_Rect window_dimensions = {SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGTH};
-    Game *game = new Game(&window_dimensions, 6);
+    Game *game = new Game(&window_dimensions, 2);
     int exit_status = game->game_loop();
     delete game;
     TTF_Quit();

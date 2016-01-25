@@ -45,9 +45,9 @@ double operator!(SDL_Point left)
 
 Field Field::cubic_round(double x, double y, double z)
 {
-    Sint8 round_x = (Sint8) std::round(x);
-    Sint8 round_y = (Sint8) std::round(y);
-    Sint8 round_z = (Sint8) std::round(z);
+    double round_x = std::round(x);
+    double round_y = std::round(y);
+    double round_z = std::round(z);
     double x_err = std::abs(round_x - x);
     double y_err = std::abs(round_y - y);
     double z_err = std::abs(round_z - z);
@@ -61,7 +61,10 @@ Field Field::cubic_round(double x, double y, double z)
     {
         round_z = -round_x - round_y;
     }
-    return Field(round_x, round_y, round_z);
+    Sint16 x_out = (int) round_x;
+    Sint16 y_out = (int) round_y;
+    Sint16 z_out = (int) round_z;
+    return Field(x_out, y_out, z_out);
 }
 
 
@@ -139,7 +142,7 @@ void FieldMeta::render(SDL_Renderer *renderer, Layout *layout)
         vx[i] = (Sint16) polygon[i].x;
         vy[i] = (Sint16) polygon[i].y;
     }
-    if (*(this->owner) == Player())
+    if (this->owner->get_id().is_nil())
         color = {0x77, 0x77, 0x77, 0x77};
     filledPolygonRGBA(renderer, vx, vy, 6, color.r, color.g, color.b, 0x33);
     SDL_Color inverse;
@@ -191,7 +194,7 @@ void FieldMeta::regenerate_resources()
         this->resources *= 2;
 }
 
-Resource Grid::get_resources_of_cluster(const Cluster *cluster)
+Resource HexagonGrid::get_resources_of_cluster(Cluster *cluster)
 {
     Resource res = {0, 0, 0};
     for (FieldMeta *elem : *cluster)
@@ -205,24 +208,21 @@ Resource Grid::get_resources_of_cluster(const Cluster *cluster)
 bool FieldMeta::upgrade(Upgrade upgrade)
 {
     // check available resources for cluster and consume resources
-    Cluster *cluster = this->grid->get_cluster(this);
-    Resource cluster_resources = this->grid->get_resources_of_cluster(this->grid->get_cluster(this, cluster));
-    Resource remaining_costs;
-    try
+    Cluster *cluster = new Cluster();
+    this->grid->get_cluster(this);
+    Resource cluster_resources = this->grid->get_resources_of_cluster(cluster);
+    auto pair = UPGRADE_COSTS.find(upgrade);
+    if (pair != UPGRADE_COSTS.end())
     {
-        Resource costs = UPGRADE_COSTS.at(upgrade);
-        remaining_costs = this->grid->consume_resources_of_cluster(cluster, costs);
+        Resource costs = pair->second;
+        Resource remaining_costs = this->grid->consume_resources_of_cluster(cluster, costs);
+        static const Resource neutral = {0, 0, 0};
+        if (remaining_costs == neutral)
+        {
+            this->upgrades[upgrade] = true;
+        }
     }
-    catch (const std::out_of_range &oor)
-    {
-        std::cerr << "Out of Range exception: " << oor.what() << std::endl;
-        remaining_costs = {1, 1, 1};
-    }
-    static const Resource neutral = {0, 0, 0};
-    if (remaining_costs == neutral)
-    {
-        this->upgrades[upgrade] = true;
-    }
+    delete cluster;
     return this->upgrades[upgrade];
 }
 
@@ -234,36 +234,38 @@ FieldMeta *FieldMeta::get_neighbor(Uint8 direction)
 FieldMeta *HexagonGrid::get_neighbor(FieldMeta *meta, Uint8 direction)
 {
     Field neighbor_field = meta->get_field().get_neighbor(direction);
-    try
-    {
-        return this->fields.at(neighbor_field);
-    }
-    catch (const std::out_of_range &oor)
-    {
-        std::cerr << "Tried to look up non-existing field: " << neighbor_field << std::endl;
-    }
-    return nullptr;
+    FieldMeta *neighbor = nullptr;
+    auto pair = this->fields.find(neighbor_field);
+    if (pair != this->fields.end())
+        neighbor = pair->second;
+    return neighbor;
 }
 
-Cluster *HexagonGrid::get_cluster(FieldMeta *field, Cluster *visited)
+Cluster HexagonGrid::get_cluster(FieldMeta *field)
 {
-    if (visited == nullptr)
-        visited = new Cluster();
-    if (visited->find(field) != visited->end()) // already been here before
-        return visited;
-    else
-        visited->insert(field);
-    for (Uint8 i = 0; i < 6; i++)
+    Cluster visited = Cluster();
+    FieldMeta *current = nullptr;
+    std::set<FieldMeta *> seen = {field};
+    while (!seen.empty()) // still unvisited fields, that can be reached
     {
-        FieldMeta *neighbor = this->get_neighbor(field, i);
-        if (neighbor->get_owner() != field->get_owner()) // ignore meta if field not owned by specified owner
-            return visited;
-        this->get_cluster(neighbor, visited);
+        current = *(seen.begin());
+        seen.erase(current);
+        for (Uint8 i = 0; i < 6; i++)
+        {
+            FieldMeta *neighbor = this->get_neighbor(current, i);
+            // neighbor is unvisited, unseen and inside same cluster
+            if (neighbor != nullptr && *(neighbor->get_owner()) == *(current->get_owner())
+                && visited.find(neighbor) == visited.end() && seen.find(neighbor) == seen.end())
+            {
+                seen.insert(neighbor); // discovered an unseen neighbor, will visit later
+            }
+        }
+        visited.insert(current); // have seen all of the neighbors for this field
     }
     return visited;
 }
 
-Resource Grid::consume_resources_of_cluster(Cluster *cluster, Resource costs)
+Resource HexagonGrid::consume_resources_of_cluster(Cluster *cluster, Resource costs)
 {
     for (FieldMeta *meta : *cluster)
     {
@@ -272,7 +274,6 @@ Resource Grid::consume_resources_of_cluster(Cluster *cluster, Resource costs)
         costs -= meta->get_resources();
         meta->consume_resources(tmp);
     }
-    delete cluster;
     return costs; // > {0, 0, 0} means there were not enough resources
 }
 
@@ -282,7 +283,7 @@ bool Player::fight(FieldMeta *field)
     {
         return false;
     }
-    if (*(field->get_owner()) == Player()) // still to be had
+    if (field->get_owner()->get_id().is_nil()) // still to be had
     {
         field->set_owner(this);
         return true;
@@ -311,16 +312,10 @@ bool Player::fight(FieldMeta *field)
     return false;
 }
 
-void FieldMeta::handle_event(const SDL_Event *event, EventContext *context)
+void FieldMeta::handle_event(const SDL_Event *event)
 {
-    switch (event->type - context->base_event)
-    {
-        case BOB_FIELDUPDATEEVENT:
-            this->regenerate_resources();
-            break;
-        default:
-            break;
-    }
+    if (event->type == BOB_NEXTTURNEVENT)
+        this->regenerate_resources();
 }
 
 bool HexagonGrid::render(SDL_Renderer *renderer)
@@ -350,7 +345,7 @@ bool HexagonGrid::render(SDL_Renderer *renderer)
     return true;
 }
 
-void Grid::handle_event(SDL_Event *event, EventContext *context)
+void HexagonGrid::handle_event(SDL_Event *event)
 {
     SDL_Point mouse = {0, 0};
     SDL_GetMouseState(&mouse.x, &mouse.y);
@@ -360,32 +355,32 @@ void Grid::handle_event(SDL_Event *event, EventContext *context)
     switch (event->type)
     {
         case SDL_MOUSEWHEEL:
-        if (old_size + scroll < 10)
-        {
-            this->layout->size = 10;
-        }
-        else if (old_size + scroll > 100)
-        {
-            this->layout->size = 100;
-        }
-        else
-        {
-            this->layout->size += scroll;
-        }
-        this->move(((1.0 - (double) this->layout->size / old_size) * (mouse - old_origin)));
+            if (old_size + scroll < 10)
+            {
+                this->layout->size = 10;
+            }
+            else if (old_size + scroll > 100)
+            {
+                this->layout->size = 100;
+            }
+            else
+            {
+                this->layout->size += scroll;
+            }
+            this->move(((1.0 - (double) this->layout->size / old_size) * (mouse - old_origin)));
+            if (!on_rectangle(&layout->box))
+                this->layout->size -= scroll;
             break;
         case SDL_MOUSEMOTION:
-        if (this->panning)
-        {
-            SDL_Point mouse = {0, 0};
-            SDL_GetMouseState(&mouse.x, &mouse.y);
-            Point marker_pos = this->marker->get_field().field_to_point(this->layout);
-            SDL_Point p;
-            p.x = (int) marker_pos.x;
-            p.y = (int) marker_pos.y;
-            this->move(mouse - p);
-        }
-        this->update_marker();
+            if (this->panning)
+            {
+                Point marker_pos = this->marker->get_field().field_to_point(this->layout);
+                SDL_Point p;
+                p.x = (int) marker_pos.x;
+                p.y = (int) marker_pos.y;
+                this->move(mouse - p);
+            }
+            this->update_marker();
             break;
         case SDL_MOUSEBUTTONDOWN:
             switch (event->button.button)
@@ -400,9 +395,13 @@ void Grid::handle_event(SDL_Event *event, EventContext *context)
         default:
             break;
     }
+    for (auto elem : this->fields)
+    {
+        elem.second->handle_event(event);
+    }
 }
 
-void Grid::move(SDL_Point m)
+void HexagonGrid::move(SDL_Point m)
 {
     this->layout->origin = this->layout->origin + m;
     // check if some part is inside layout->box
@@ -411,7 +410,7 @@ void Grid::move(SDL_Point m)
     this->update_marker();
 }
 
-void Grid::update_marker()
+void HexagonGrid::update_marker()
 {
     SDL_Point m = {0, 0};
     SDL_GetMouseState(&(m.x), &(m.y));
@@ -420,26 +419,30 @@ void Grid::update_marker()
     p.y = m.y;
     FieldMeta *n_marker = this->point_to_field(p);
     if (n_marker != nullptr)
+    {
         this->marker = n_marker;
+        SDL_Event event;
+        SDL_memset(&event, 0, sizeof(event)); /* or SDL_zero(event) */
+        event.type = BOB_MARKERUPDATE;
+        event.user.code = 0x0;
+        event.user.data1 = static_cast<void *>(n_marker);
+        event.user.data2 = 0;
+        SDL_PushEvent(&event);
+    }
 }
 
-FieldMeta *Grid::point_to_field(const Point p)
+FieldMeta *HexagonGrid::point_to_field(const Point p)
 {
     Field field = p.point_to_field(this->layout);
     FieldMeta *meta = nullptr;
-    try
-    {
-        meta = this->fields.at(field);
-    }
-    catch (const std::out_of_range &oor)
-    {
-        //std::cerr << "Tried to access non-existant field " << field <<  ": " << oor.what() << std::endl;
-    }
+    auto pair = this->fields.find(field);
+    if (pair != this->fields.end())
+        meta = pair->second;
     return meta;
 
 }
 
-bool Grid::on_rectangle(SDL_Rect *rect)
+bool HexagonGrid::on_rectangle(SDL_Rect *rect)
 {
     // check if center inside rect for ANY field
     for (const auto &pair : this->fields)
@@ -456,8 +459,9 @@ bool Grid::on_rectangle(SDL_Rect *rect)
     return false;
 }
 
-void Grid::update_box(SDL_Point dimensions)
+void HexagonGrid::update_dimensions(SDL_Point dimensions)
 {
+    this->layout->origin = {dimensions.x / 2, dimensions.y / 2};
     this->layout->box.w = dimensions.x;
     this->layout->box.h = dimensions.y;
 }

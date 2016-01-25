@@ -3,27 +3,16 @@
 
 #include <SDL2/SDL.h>
 #include <boost/uuid/uuid.hpp>
+#include "Exceptions.hpp"
 
-enum Bob_Event
-{
-    BOB_NEXTTURNEVENT,
-    BOB_FIELDUPDATEEVENT
-};
+#ifndef _EVENT_TYPES
+#define _EVENT_TYPES
+extern const Uint32 BOB_NEXTTURNEVENT;
+extern const Uint32 BOB_MARKERUPDATE;
+extern const Uint32 BOB_FIELDUPDATEEVENT;
+#endif
 
-class EventContext
-{
-public:
-    EventContext()
-            : base_event(register_events(num_events)) { }
-
-    const Uint32 base_event;
-
-private:
-
-    static const int num_events = 2;
-
-    static Uint32 register_events(Uint32 n);
-};
+Uint32 register_events(Uint32 n);
 
 class Timer
 {

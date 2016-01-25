@@ -1,5 +1,9 @@
 #include "Events.hpp"
 
+const Uint32 BOB_NEXTTURNEVENT = register_events(1);
+const Uint32 BOB_MARKERUPDATE = register_events(1);
+const Uint32 BOB_FIELDUPDATEEVENT = register_events(1);
+
 void Timer::start_timer()
 {
     this->timer_started = SDL_GetTicks();
@@ -18,7 +22,10 @@ Uint32 Timer::reset_timer()
     return ticks_passed;
 }
 
-Uint32 EventContext::register_events(Uint32 num_events)
+Uint32 register_events(Uint32 n)
 {
-    return SDL_RegisterEvents(num_events);
+    Uint32 base_event = SDL_RegisterEvents(n);
+    if (base_event == ((Uint32) - 1))
+        throw SDL_Exception("Failed to register events!");
+    return base_event;
 }

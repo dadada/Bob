@@ -93,7 +93,7 @@ public:
         SDL_DestroyTexture(this->texture);
     }
 
-    virtual void handle_event(const SDL_Event *event, EventContext *context);
+    void update_dimensions(SDL_Point dimensions);
 
     virtual void render(Renderer *renderer);
 
@@ -101,6 +101,7 @@ public:
 
     SDL_Rect get_dimensions() { return this->dimensions; }
 
+    virtual void handle_event(const SDL_Event *event) = 0;
 protected:
     Renderer *renderer;
     SDL_Texture *texture;
@@ -115,9 +116,9 @@ public:
     TextBox(Renderer *renderer, SDL_Rect dimensions, SDL_Color color, TTF_Font *font_)
             : Box(renderer, dimensions, color), font(font_) { }
 
-    virtual void handle_event(const SDL_Event *event, EventContext *context);
+    virtual bool load_text(std::string text);
 
-    bool load_text(std::string text);
+    virtual void handle_event(const SDL_Event *event) { };
 
 protected:
     TTF_Font *font;
@@ -129,7 +130,9 @@ public:
     FieldBox(Renderer *renderer, SDL_Rect dimensions, SDL_Color color, TTF_Font *font, FieldMeta *field_)
             : TextBox(renderer, dimensions, color, font), field(field_) { }
 
-    void handle_event(const SDL_Event *event, EventContext *context);
+    void handle_event(const SDL_Event *event);
+
+    void update();
 
 private:
     FieldMeta *field;
@@ -141,7 +144,7 @@ public:
     UpgradeBox(Renderer *renderer, SDL_Rect dimensions, FieldMeta *field_, SDL_Color color, TTF_Font *font)
             : TextBox(renderer, dimensions, color, font) { }
 
-    void handle_event(const SDL_Event *event, EventContext *context);
+    void handle_event(const SDL_Event *event);
 };
 
 class ButtonInfoBox : public TextBox
@@ -151,7 +154,7 @@ public:
                   UpgradeBox *upgrade_box_)
             : TextBox(renderer, dimensions, color, font), upgrade_box(upgrade_box_) { }
 
-    void handle_event(const SDL_Event *event, EventContext *context);
+    void handle_event(const SDL_Event *event);
 
 private:
     UpgradeBox *upgrade_box;
@@ -171,6 +174,10 @@ public:
     void render(Renderer *renderer);
 
     void set_visible(bool visible);
+
+    void handle_event(SDL_Event *event);
+
+    void update_dimensions(SDL_Point dimensions);
 
 private:
     Window *window;
