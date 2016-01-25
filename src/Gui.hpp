@@ -12,6 +12,7 @@
 #include "Exceptions.hpp"
 #include "Gameplay.hpp"
 #include "Events.hpp"
+#include "Pixelmask.h"
 
 SDL_Color operator!(const SDL_Color &color);
 
@@ -42,8 +43,6 @@ public:
     SDL_Window *get_window() { return this->window; }
 
     SDL_Point toggle_fullscreen();
-
-    bool position_inside_window(SDL_Point position);
 
     int get_window_id();
 };
@@ -88,18 +87,20 @@ public:
         this->visible = false;
     }
 
-    ~Box()
+    virtual ~Box()
     {
         SDL_DestroyTexture(this->texture);
     }
 
-    void update_dimensions(SDL_Point dimensions);
+    virtual void update_position(SDL_Point dimensions);
 
     virtual void render(Renderer *renderer);
 
-    void set_visible(bool visibility) { this->visible = visibility; }
+    virtual void set_visible(bool visibility) { this->visible = visibility; }
 
     SDL_Rect get_dimensions() { return this->dimensions; }
+
+    void set_dimensions(SDL_Rect dimensions) { this->dimensions = dimensions; }
 
     virtual void handle_event(const SDL_Event *event) = 0;
 protected:
@@ -118,7 +119,7 @@ public:
 
     virtual bool load_text(std::string text);
 
-    virtual void handle_event(const SDL_Event *event) { };
+    virtual void handle_event(const SDL_Event *event) { }
 
 protected:
     TTF_Font *font;
@@ -132,32 +133,88 @@ public:
 
     void handle_event(const SDL_Event *event);
 
-    void update();
+    virtual void update();
 
-private:
+protected:
     FieldMeta *field;
 };
 
-class UpgradeBox : public TextBox
+class UpgradeBox;
+
+class UpgradeButtonBox : public TextBox
 {
 public:
-    UpgradeBox(Renderer *renderer, SDL_Rect dimensions, FieldMeta *field_, SDL_Color color, TTF_Font *font)
-            : TextBox(renderer, dimensions, color, font) { }
+    UpgradeButtonBox(Renderer *renderer, SDL_Rect dimensions, SDL_Color color, TTF_Font *font, UpgradeBox *box_,
+                     Upgrade upgrade)
+            : TextBox(renderer, dimensions, color, font), box(box_), upgrade(upgrade) { }
+
+    Upgrade get_upgrade() { return this->upgrade; }
 
     void handle_event(const SDL_Event *event);
-};
 
-class ButtonInfoBox : public TextBox
-{
-public:
-    ButtonInfoBox(Renderer *renderer, SDL_Rect dimensions, FieldMeta *field_, SDL_Color color, TTF_Font *font,
-                  UpgradeBox *upgrade_box_)
-            : TextBox(renderer, dimensions, color, font), upgrade_box(upgrade_box_) { }
-
-    void handle_event(const SDL_Event *event);
+    void set_active(bool state);
 
 private:
-    UpgradeBox *upgrade_box;
+    UpgradeBox *box;
+    Upgrade upgrade;
+    bool active; // this upgrade has been unlocked
+};
+
+class UpgradeBox : public Box
+{
+public:
+    UpgradeBox(Renderer *renderer, SDL_Rect dimensions, SDL_Color color, TTF_Font *font, FieldMeta *field_)
+            : Box(renderer, dimensions, color), field(field_)
+    {
+        ;
+        this->texture = SDL_CreateTexture(renderer->get_renderer(), SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET,
+                                          dimensions.w, dimensions.h);
+        int y = dimensions.y;
+        for (Upgrade upgrade : UPGRADES)
+        {
+            UpgradeButtonBox *box = new UpgradeButtonBox(renderer, {0, y, 0, 0}, color, font, this, upgrade);
+            box->load_text(UPGRADE_NAMES.at(upgrade));
+            y += 20;
+            this->marked_upgrade = box;
+            this->upgrades.push_back(box);
+        }
+        this->upgrade_info = new TextBox(renderer, {0, 0, 0, 0}, color, font);
+        renderer->set_draw_color({0x77, 0x77, 0x77, 0x77});
+        SDL_SetRenderTarget(renderer->get_renderer(), this->texture);
+        const SDL_Rect bg = dimensions;
+        if (SDL_RenderFillRect(renderer->get_renderer(), &bg) < 0)
+        {
+            SDL_DestroyTexture(this->texture);
+            SDL_SetRenderTarget(renderer->get_renderer(), nullptr);
+            throw SDL_RendererException();
+        }
+        SDL_SetRenderTarget(renderer->get_renderer(), nullptr);
+    }
+
+    ~UpgradeBox()
+    {
+        for (auto box : upgrades)
+        {
+            delete box;
+        }
+        delete upgrade_info;
+    }
+
+    void handle_event(const SDL_Event *event);
+
+    void render(Renderer *renderer);
+
+    FieldMeta *get_field() { return this->field; }
+
+    void update_position(SDL_Point pos);
+
+    void set_visible(bool status);
+
+private:
+    std::vector<UpgradeButtonBox *> upgrades;
+    UpgradeButtonBox *marked_upgrade;
+    TextBox *upgrade_info;
+    FieldMeta *field;
 };
 
 class Container
@@ -177,7 +234,7 @@ public:
 
     void handle_event(SDL_Event *event);
 
-    void update_dimensions(SDL_Point dimensions);
+    void update_position(SDL_Point dimensions);
 
 private:
     Window *window;

@@ -23,12 +23,16 @@ void Game::handle_event(SDL_Event *event)
             break;
         case SDL_MOUSEMOTION:
             grid->handle_event(event);
+            this->side_bar->handle_event(event);
+            this->upgrade_box->handle_event(event);
             break;
         case SDL_MOUSEWHEEL:
             grid->handle_event(event);
             break;
         case SDL_MOUSEBUTTONDOWN:
-            grid->handle_event(event);
+            this->grid->handle_event(event);
+            this->side_bar->handle_event(event);
+            this->upgrade_box->handle_event(event);
             break;
         case SDL_KEYDOWN:
             switch (event->key.keysym.sym)
@@ -48,7 +52,8 @@ void Game::handle_event(SDL_Event *event)
                 case SDLK_f:
                     window_size = this->window->toggle_fullscreen();
                     this->grid->update_dimensions(window_size);
-                    this->side_bar->update_dimensions(window_size);
+                    this->field_box->update_position({0, 20});
+                    this->upgrade_box->set_visible(false);
                     break;
                 case SDLK_ESCAPE:
                     this->quit = true;
@@ -78,10 +83,11 @@ void Game::handle_event(SDL_Event *event)
             break;
         default:
             if (event->type == BOB_MARKERUPDATE || event->type == BOB_NEXTTURNEVENT ||
-                event->type == BOB_FIELDUPDATEEVENT)
+                event->type == BOB_FIELDUPDATEEVENT || event->type == BOB_FIELDSELECTED)
             {
                 this->grid->handle_event(event);
                 this->side_bar->handle_event(event);
+                this->upgrade_box->handle_event(event);
             }
             break;
     }
@@ -127,6 +133,7 @@ void Game::render()
         this->renderer->clear();
         this->grid->render(this->renderer->get_renderer());
         this->side_bar->render(this->renderer);
+        this->upgrade_box->render(this->renderer);
         this->renderer->present();
     }
     catch (const SDL_RendererException &err)
@@ -165,7 +172,8 @@ int main(int, char **)
     }
     SDL_Rect window_dimensions = {SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGTH};
     Game *game = new Game(&window_dimensions, 2);
-    int exit_status = game->game_loop();
+    int exit_status = 1;
+    exit_status = game->game_loop();
     delete game;
     TTF_Quit();
     SDL_Quit();

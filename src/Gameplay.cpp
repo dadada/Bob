@@ -183,6 +183,17 @@ void FieldMeta::render(SDL_Renderer *renderer, Layout *layout)
     }
 }
 
+void FieldMeta::trigger_event(Uint32 type, Sint32 code)
+{
+    SDL_Event event;
+    SDL_memset(&event, 0, sizeof(event)); /* or SDL_zero(event) */
+    event.type = type;
+    event.user.code = code;
+    event.user.data1 = static_cast<void *>(this);
+    event.user.data2 = 0;
+    SDL_PushEvent(&event);
+}
+
 void FieldMeta::regenerate_resources()
 {
     this->resources = resources_base;
@@ -192,6 +203,7 @@ void FieldMeta::regenerate_resources()
         this->resources *= 2;
     if (this->upgrades[Regeneration_3])
         this->resources *= 2;
+    this->trigger_event(BOB_FIELDUPDATEEVENT, 0);
 }
 
 Resource HexagonGrid::get_resources_of_cluster(Cluster *cluster)
@@ -208,21 +220,24 @@ Resource HexagonGrid::get_resources_of_cluster(Cluster *cluster)
 bool FieldMeta::upgrade(Upgrade upgrade)
 {
     // check available resources for cluster and consume resources
-    Cluster *cluster = new Cluster();
-    this->grid->get_cluster(this);
-    Resource cluster_resources = this->grid->get_resources_of_cluster(cluster);
+    if (this->upgrades[upgrade])
+        return this->upgrades[upgrade];
+    Cluster cluster = this->grid->get_cluster(this);
+    Resource cluster_resources = this->grid->get_resources_of_cluster(&cluster);
     auto pair = UPGRADE_COSTS.find(upgrade);
     if (pair != UPGRADE_COSTS.end())
     {
         Resource costs = pair->second;
-        Resource remaining_costs = this->grid->consume_resources_of_cluster(cluster, costs);
+        if (costs > cluster_resources) // too expensive for you
+            return this->upgrades[upgrade];
+        Resource remaining_costs = this->grid->consume_resources_of_cluster(&cluster, costs);
         static const Resource neutral = {0, 0, 0};
         if (remaining_costs == neutral)
         {
             this->upgrades[upgrade] = true;
         }
     }
-    delete cluster;
+    this->trigger_event(BOB_FIELDUPDATEEVENT, 0);
     return this->upgrades[upgrade];
 }
 
@@ -263,6 +278,12 @@ Cluster HexagonGrid::get_cluster(FieldMeta *field)
         visited.insert(current); // have seen all of the neighbors for this field
     }
     return visited;
+}
+
+void FieldMeta::consume_resources(Resource costs)
+{
+    this->resources -= costs;
+    this->trigger_event(BOB_FIELDUPDATEEVENT, 0);
 }
 
 Resource HexagonGrid::consume_resources_of_cluster(Cluster *cluster, Resource costs)
@@ -388,6 +409,12 @@ void HexagonGrid::handle_event(SDL_Event *event)
                 case SDL_BUTTON_MIDDLE:
                     this->panning = !(this->panning);
                     break;
+                case SDL_BUTTON_RIGHT:
+                    this->marker->trigger_event(BOB_FIELDSELECTED, 0);
+                    break;
+                    //case SDL_BUTTON_LEFT:
+                    //    this->marker->trigger_event(BOB_FIELDSELECTED, 1);
+                    //    break;
                 default:
                     break;
             }
@@ -421,13 +448,11 @@ void HexagonGrid::update_marker()
     if (n_marker != nullptr)
     {
         this->marker = n_marker;
-        SDL_Event event;
-        SDL_memset(&event, 0, sizeof(event)); /* or SDL_zero(event) */
-        event.type = BOB_MARKERUPDATE;
-        event.user.code = 0x0;
-        event.user.data1 = static_cast<void *>(n_marker);
-        event.user.data2 = 0;
-        SDL_PushEvent(&event);
+        n_marker->trigger_event(BOB_MARKERUPDATE, 0);
+    }
+    else
+    {
+        marker->trigger_event(BOB_MARKERUPDATE, 1);
     }
 }
 
@@ -440,6 +465,15 @@ FieldMeta *HexagonGrid::point_to_field(const Point p)
         meta = pair->second;
     return meta;
 
+}
+
+FieldMeta *HexagonGrid::get_field(Field field)
+{
+    FieldMeta *meta = nullptr;
+    auto pair = this->fields.find(field);
+    if (pair != this->fields.end())
+        meta = pair->second;
+    return meta;
 }
 
 bool HexagonGrid::on_rectangle(SDL_Rect *rect)
@@ -464,4 +498,9 @@ void HexagonGrid::update_dimensions(SDL_Point dimensions)
     this->layout->origin = {dimensions.x / 2, dimensions.y / 2};
     this->layout->box.w = dimensions.x;
     this->layout->box.h = dimensions.y;
+}
+
+Point HexagonGrid::field_to_point(FieldMeta *field)
+{
+    return field->get_field().field_to_point(this->layout);
 }

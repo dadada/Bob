@@ -3,6 +3,7 @@
 const Uint32 BOB_NEXTTURNEVENT = register_events(1);
 const Uint32 BOB_MARKERUPDATE = register_events(1);
 const Uint32 BOB_FIELDUPDATEEVENT = register_events(1);
+const Uint32 BOB_FIELDSELECTED = register_events(1);
 
 void Timer::start_timer()
 {

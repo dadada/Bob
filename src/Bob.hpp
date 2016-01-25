@@ -32,29 +32,39 @@ public:
             this->move[i] = false;
         }
         this->quit = false;
-        SDL_Color fg = {0x00, 0xff, 0x00, 0xff};
+        SDL_Color fg = {0xff, 0xff, 0xff, 0xff};
         try
         {
             this->font = load_font_from_file("/usr/share/fonts/dejavu/DejaVuSans.ttf", 12);
             this->window = new Window(TITLE, window_dimensions, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
             this->renderer = new Renderer(this->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
                                                             | SDL_RENDERER_TARGETTEXTURE);
+            FieldMeta *center = this->grid->get_field({0, 0, 0});
             SDL_Rect side_bar_dimensions = {window_dimensions->x - SIDEBAR_WIDTH, 0, SIDEBAR_WIDTH,
                                             window_dimensions->y};
             this->side_bar = new Container(this->window, this->renderer, side_bar_dimensions);
             this->field_box = new FieldBox(this->renderer,
-                                           {0, 20, SIDEBAR_WIDTH, SCREEN_HEIGTH},
+                                           {0, 20, 0, 0},
                                            fg,
                                            this->font,
-                                           this->grid->point_to_field({0.0, 0.0})
+                                           center
+            );
+            this->upgrade_box = new UpgradeBox(this->renderer,
+                                               {0, 0, 210, 140},
+                                               fg,
+                                               this->font,
+                                               center
             );
             this->test_box = new TextBox(this->renderer,
                                          {0, 0, SIDEBAR_WIDTH, SCREEN_HEIGTH},
-                                         fg, this->font
+                                         fg,
+                                         this->font
             );
+            this->test_box->set_visible(true);
             this->side_bar->add(test_box);
             this->side_bar->add(field_box);
-            this->side_bar->set_visible(true);
+            //this->side_bar->add(upgrade_box);
+            //this->side_bar->set_visible(true);
         }
         catch (const SDL_Exception &sdl_except)
         {
@@ -85,6 +95,7 @@ public:
     int game_loop();
 
 private:
+    UpgradeBox *upgrade_box;
     FieldBox *field_box;
     TextBox *test_box;
     TTF_Font *font;

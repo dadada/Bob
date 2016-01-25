@@ -10,6 +10,7 @@
 extern const Uint32 BOB_NEXTTURNEVENT;
 extern const Uint32 BOB_MARKERUPDATE;
 extern const Uint32 BOB_FIELDUPDATEEVENT;
+extern const Uint32 BOB_FIELDSELECTED;
 #endif
 
 Uint32 register_events(Uint32 n);

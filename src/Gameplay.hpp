@@ -23,8 +23,6 @@
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include "Events.hpp"
 
-#define NUM_UPGRADES 10
-
 SDL_Point operator+(SDL_Point left, SDL_Point right);
 
 SDL_Point operator-(SDL_Point left, SDL_Point right);
@@ -339,8 +337,6 @@ inline std::ostream &operator<<(std::ostream &os, const Field &rhs)
     return os;
 }
 
-typedef std::bitset<NUM_UPGRADES> UpgradeFlags;
-
 struct Resource
 {
     Uint8 circle;
@@ -441,7 +437,6 @@ struct Resource
 
 enum Upgrade
 {
-    First_Upgrade = 0,
     Regeneration_1,
     Regeneration_2,
     Regeneration_3,
@@ -449,6 +444,13 @@ enum Upgrade
     Reproduction_2,
     Reproduction_3
 };
+
+const std::vector<Upgrade> UPGRADES = {Regeneration_1, Regeneration_2, Regeneration_3, Reproduction_1, Reproduction_2,
+                                       Reproduction_3};
+
+const int NUM_UPGRADES = 6;
+
+typedef std::bitset<NUM_UPGRADES> UpgradeFlags;
 
 namespace std
 {
@@ -472,6 +474,28 @@ const std::unordered_map<Upgrade, Resource> UPGRADE_COSTS(
                 {Reproduction_1, {4,  4,  4}},
                 {Reproduction_2, {8,  8,  8}},
                 {Reproduction_3, {16, 16, 16}}
+        }
+);
+
+const std::unordered_map<Upgrade, std::string> UPGRADE_NAMES(
+        {
+                {Regeneration_1, "Regeneration 1"},
+                {Regeneration_2, "Regeneration 2"},
+                {Regeneration_3, "Regeneration 3"},
+                {Reproduction_1, "Reproduction 1"},
+                {Reproduction_2, "Reproduction 2"},
+                {Reproduction_3, "Reproduction 3"}
+        }
+);
+
+const std::unordered_map<Upgrade, std::string> UPGRADE_TEXTS(
+        {
+                {Regeneration_1, "Resources yield 2x their base resources per turn."},
+                {Regeneration_2, "Resources yield 4x their base resources per turn."},
+                {Regeneration_3, "Resources yield 8x their base resources per turn."},
+                {Reproduction_1, "Not used yet!"},
+                {Reproduction_2, "Not used yet!"},
+                {Reproduction_3, "Not used yet!"}
         }
 );
 
@@ -562,7 +586,7 @@ public:
 
     UpgradeFlags get_upgrades() { return this->upgrades; }
 
-    void consume_resources(Resource costs) { this->resources -= costs; }
+    void consume_resources(Resource costs);
 
     void regenerate_resources();
 
@@ -571,6 +595,8 @@ public:
     void handle_event(const SDL_Event *event);
 
     FieldMeta *get_neighbor(Uint8 direction);
+
+    void trigger_event(Uint32 type, Sint32 code);
 
 private:
     const Field field;
@@ -638,6 +664,10 @@ public:
     Resource consume_resources_of_cluster(Cluster *cluster, Resource costs);
 
     FieldMeta *point_to_field(const Point p);
+
+    Point field_to_point(FieldMeta *field);
+
+    FieldMeta *get_field(Field field);
 
     void handle_event(SDL_Event *event);
 
