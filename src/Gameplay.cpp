@@ -144,11 +144,11 @@ void FieldMeta::render(SDL_Renderer *renderer, Layout *layout)
     }
     if (this->owner->get_id().is_nil())
         color = {0x77, 0x77, 0x77, 0x77};
-    filledPolygonRGBA(renderer, vx, vy, 6, color.r, color.g, color.b, 0x33);
+    filledPolygonRGBA(renderer, vx, vy, 6, color.r, color.g, color.b, 0x22);
     SDL_Color inverse;
-    inverse.r = (Uint8) (0xff - color.r);
-    inverse.g = (Uint8) (0xff - color.g);
-    inverse.b = (Uint8) (0xff - color.b);
+    inverse.r = (Uint8) (color.r + 0x77);
+    inverse.g = (Uint8) (color.g + 0x77);
+    inverse.b = (Uint8) (color.b + 0x77);
     inverse.a = 0xff;
     double resource_size = layout->size / 4;
     if (this->resources_base.triangle > 0)
@@ -237,7 +237,7 @@ bool FieldMeta::upgrade(Upgrade upgrade)
             this->upgrades[upgrade] = true;
         }
     }
-    this->trigger_event(BOB_FIELDUPDATEEVENT, 0);
+    this->trigger_event(BOB_FIELDUPGRADEVENT, 0);
     return this->upgrades[upgrade];
 }
 
@@ -359,7 +359,7 @@ bool HexagonGrid::render(SDL_Renderer *renderer)
         polygonRGBA(renderer, x, y, 6, color.r, color.g, color.b, color.a);
         if (elem.first == this->marker->get_field())
         {
-            filledPolygonRGBA(renderer, x, y, 6, 0x77, 0x77, 0x77, 0x77);
+            filledPolygonRGBA(renderer, x, y, 6, 0x77, 0x77, 0x77, 0x22);
         }
         elem.second->render(renderer, this->layout);
     }
@@ -376,13 +376,13 @@ void HexagonGrid::handle_event(SDL_Event *event)
     switch (event->type)
     {
         case SDL_MOUSEWHEEL:
-            if (old_size + scroll < 10)
+            if (old_size + scroll < 20)
             {
-                this->layout->size = 10;
+                this->layout->size = 20;
             }
-            else if (old_size + scroll > 100)
+            else if (old_size + scroll > 1000)
             {
-                this->layout->size = 100;
+                this->layout->size = 1000;
             }
             else
             {
@@ -412,9 +412,6 @@ void HexagonGrid::handle_event(SDL_Event *event)
                 case SDL_BUTTON_RIGHT:
                     this->marker->trigger_event(BOB_FIELDSELECTED, 0);
                     break;
-                    //case SDL_BUTTON_LEFT:
-                    //    this->marker->trigger_event(BOB_FIELDSELECTED, 1);
-                    //    break;
                 default:
                     break;
             }
@@ -439,20 +436,23 @@ void HexagonGrid::move(SDL_Point m)
 
 void HexagonGrid::update_marker()
 {
-    SDL_Point m = {0, 0};
-    SDL_GetMouseState(&(m.x), &(m.y));
-    Point p = {0.0, 0.0};
-    p.x = m.x;
-    p.y = m.y;
-    FieldMeta *n_marker = this->point_to_field(p);
-    if (n_marker != nullptr)
+    if (!Timer::MOUSE_LOCKED)
     {
-        this->marker = n_marker;
-        n_marker->trigger_event(BOB_MARKERUPDATE, 0);
-    }
-    else
-    {
-        marker->trigger_event(BOB_MARKERUPDATE, 1);
+        SDL_Point m = {0, 0};
+        SDL_GetMouseState(&(m.x), &(m.y));
+        Point p = {0.0, 0.0};
+        p.x = m.x;
+        p.y = m.y;
+        FieldMeta *n_marker = this->point_to_field(p);
+        if (n_marker != nullptr)
+        {
+            this->marker = n_marker;
+            n_marker->trigger_event(BOB_MARKERUPDATE, 0);
+        }
+        else
+        {
+            marker->trigger_event(BOB_MARKERUPDATE, 1);
+        }
     }
 }
 

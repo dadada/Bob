@@ -11,6 +11,7 @@ extern const Uint32 BOB_NEXTTURNEVENT;
 extern const Uint32 BOB_MARKERUPDATE;
 extern const Uint32 BOB_FIELDUPDATEEVENT;
 extern const Uint32 BOB_FIELDSELECTED;
+extern const Uint32 BOB_FIELDUPGRADEVENT;
 #endif
 
 Uint32 register_events(Uint32 n);
@@ -25,6 +26,8 @@ public:
     Uint32 get_timer();
 
     Uint32 reset_timer();
+
+    static bool MOUSE_LOCKED;
 };
 
 struct NextTurn

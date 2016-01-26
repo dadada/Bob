@@ -23,7 +23,7 @@ void Game::handle_event(SDL_Event *event)
             break;
         case SDL_MOUSEMOTION:
             grid->handle_event(event);
-            this->side_bar->handle_event(event);
+            this->field_box->handle_event(event);
             this->upgrade_box->handle_event(event);
             break;
         case SDL_MOUSEWHEEL:
@@ -31,7 +31,7 @@ void Game::handle_event(SDL_Event *event)
             break;
         case SDL_MOUSEBUTTONDOWN:
             this->grid->handle_event(event);
-            this->side_bar->handle_event(event);
+            this->field_box->handle_event(event);
             this->upgrade_box->handle_event(event);
             break;
         case SDL_KEYDOWN:
@@ -83,10 +83,11 @@ void Game::handle_event(SDL_Event *event)
             break;
         default:
             if (event->type == BOB_MARKERUPDATE || event->type == BOB_NEXTTURNEVENT ||
-                event->type == BOB_FIELDUPDATEEVENT || event->type == BOB_FIELDSELECTED)
+                event->type == BOB_FIELDUPDATEEVENT || event->type == BOB_FIELDSELECTED
+                || event->type == BOB_FIELDUPGRADEVENT)
             {
                 this->grid->handle_event(event);
-                this->side_bar->handle_event(event);
+                this->field_box->handle_event(event);
                 this->upgrade_box->handle_event(event);
             }
             break;
@@ -131,9 +132,10 @@ void Game::render()
     {
         this->renderer->set_draw_color({0x0, 0x0, 0x0, 0x0});
         this->renderer->clear();
-        this->grid->render(this->renderer->get_renderer());
-        this->side_bar->render(this->renderer);
+        this->test_box->render(this->renderer);
+        this->field_box->render(this->renderer);
         this->upgrade_box->render(this->renderer);
+        this->grid->render(this->renderer->get_renderer());
         this->renderer->present();
     }
     catch (const SDL_RendererException &err)
@@ -170,8 +172,10 @@ int main(int, char **)
         std::cerr << sdl_err.what() << std::endl;
         SDL_Quit();
     }
-    SDL_Rect window_dimensions = {SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGTH};
-    Game *game = new Game(&window_dimensions, 2);
+    SDL_Rect bounds;
+    SDL_GetDisplayBounds(0, &bounds);
+    SDL_Rect window_dimensions = {SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, bounds.w, bounds.h};
+    Game *game = new Game(&window_dimensions, 6);
     int exit_status = 1;
     exit_status = game->game_loop();
     delete game;

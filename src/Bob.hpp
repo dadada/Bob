@@ -12,9 +12,6 @@
 #include "Events.hpp"
 #include "Gui.hpp"
 
-const int SCREEN_WIDTH = 800;
-const int SCREEN_HEIGTH = 600;
-const int SIDEBAR_WIDTH = 300;
 const std::string TITLE = "Bob - Battles of Bacteria";
 
 class Game
@@ -25,14 +22,14 @@ public:
     {
         this->layout = new Layout(pointy_orientation, 20,
                                   {window_dimensions->w / 2, window_dimensions->h / 2},
-                                  {SIDEBAR_WIDTH, 0, window_dimensions->w - SIDEBAR_WIDTH, window_dimensions->h});
+                                  {0, 0, window_dimensions->w, window_dimensions->h});
         this->grid = new HexagonGrid(size, this->layout);
         for (int i = 0; i < 4; i++)
         {
             this->move[i] = false;
         }
         this->quit = false;
-        SDL_Color fg = {0xff, 0xff, 0xff, 0xff};
+        SDL_Color fg = {0x00, 0x00, 0x00, 0xff};
         try
         {
             this->font = load_font_from_file("/usr/share/fonts/dejavu/DejaVuSans.ttf", 12);
@@ -40,31 +37,10 @@ public:
             this->renderer = new Renderer(this->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
                                                             | SDL_RENDERER_TARGETTEXTURE);
             FieldMeta *center = this->grid->get_field({0, 0, 0});
-            SDL_Rect side_bar_dimensions = {window_dimensions->x - SIDEBAR_WIDTH, 0, SIDEBAR_WIDTH,
-                                            window_dimensions->y};
-            this->side_bar = new Container(this->window, this->renderer, side_bar_dimensions);
-            this->field_box = new FieldBox(this->renderer,
-                                           {0, 20, 0, 0},
-                                           fg,
-                                           this->font,
-                                           center
-            );
-            this->upgrade_box = new UpgradeBox(this->renderer,
-                                               {0, 0, 210, 140},
-                                               fg,
-                                               this->font,
-                                               center
-            );
-            this->test_box = new TextBox(this->renderer,
-                                         {0, 0, SIDEBAR_WIDTH, SCREEN_HEIGTH},
-                                         fg,
-                                         this->font
-            );
+            this->field_box = new FieldBox(this->renderer, {0, 0, 1, 1}, fg, this->font, center);
+            this->upgrade_box = new UpgradeBox(this->renderer, {0, 0, 1, 1}, fg, this->font, center);
+            this->test_box = new TextBox(this->renderer, {0, 0, 1, 1}, fg, this->font);
             this->test_box->set_visible(true);
-            this->side_bar->add(test_box);
-            this->side_bar->add(field_box);
-            //this->side_bar->add(upgrade_box);
-            //this->side_bar->set_visible(true);
         }
         catch (const SDL_Exception &sdl_except)
         {
@@ -77,15 +53,14 @@ public:
     ~Game()
     {
         delete this->test_box;
+        delete this->upgrade_box;
         delete this->field_box;
         delete this->move_timer;
         delete this->frame_timer;
-        delete this->side_bar;
         delete this->grid;
         delete this->renderer;
         delete this->window;
         delete this->layout;
-        //delete this->events;
     }
 
     void render();

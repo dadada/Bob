@@ -80,7 +80,7 @@ private:
 class Box
 {
 public:
-    Box(Renderer *renderer_, SDL_Rect dimensions_, SDL_Color color_)
+    Box(Renderer *renderer_, const SDL_Rect dimensions_, const SDL_Color color_)
             : renderer(renderer_), color(color_), dimensions(dimensions_)
     {
         this->texture = nullptr;
@@ -100,8 +100,6 @@ public:
 
     SDL_Rect get_dimensions() { return this->dimensions; }
 
-    void set_dimensions(SDL_Rect dimensions) { this->dimensions = dimensions; }
-
     virtual void handle_event(const SDL_Event *event) = 0;
 protected:
     Renderer *renderer;
@@ -117,7 +115,7 @@ public:
     TextBox(Renderer *renderer, SDL_Rect dimensions, SDL_Color color, TTF_Font *font_)
             : Box(renderer, dimensions, color), font(font_) { }
 
-    virtual bool load_text(std::string text);
+    bool load_text(std::string text);
 
     virtual void handle_event(const SDL_Event *event) { }
 
@@ -134,6 +132,8 @@ public:
     void handle_event(const SDL_Event *event);
 
     virtual void update();
+
+    void update_position(SDL_Point point);
 
 protected:
     FieldMeta *field;
@@ -166,29 +166,16 @@ public:
     UpgradeBox(Renderer *renderer, SDL_Rect dimensions, SDL_Color color, TTF_Font *font, FieldMeta *field_)
             : Box(renderer, dimensions, color), field(field_)
     {
-        ;
-        this->texture = SDL_CreateTexture(renderer->get_renderer(), SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET,
-                                          dimensions.w, dimensions.h);
         int y = dimensions.y;
         for (Upgrade upgrade : UPGRADES)
         {
-            UpgradeButtonBox *box = new UpgradeButtonBox(renderer, {0, y, 0, 0}, color, font, this, upgrade);
+            UpgradeButtonBox *box = new UpgradeButtonBox(renderer, {0, y, 1, 1}, color, font, this, upgrade);
             box->load_text(UPGRADE_NAMES.at(upgrade));
             y += 20;
             this->marked_upgrade = box;
             this->upgrades.push_back(box);
         }
-        this->upgrade_info = new TextBox(renderer, {0, 0, 0, 0}, color, font);
-        renderer->set_draw_color({0x77, 0x77, 0x77, 0x77});
-        SDL_SetRenderTarget(renderer->get_renderer(), this->texture);
-        const SDL_Rect bg = dimensions;
-        if (SDL_RenderFillRect(renderer->get_renderer(), &bg) < 0)
-        {
-            SDL_DestroyTexture(this->texture);
-            SDL_SetRenderTarget(renderer->get_renderer(), nullptr);
-            throw SDL_RendererException();
-        }
-        SDL_SetRenderTarget(renderer->get_renderer(), nullptr);
+        this->upgrade_info = new TextBox(renderer, {0, 0, 1, 1}, color, font);
     }
 
     ~UpgradeBox()
