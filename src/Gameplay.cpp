@@ -1,6 +1,6 @@
 #include "Gameplay.hpp"
 
-static std::vector<Player *>::iterator Player::current_player = Player::players.end();
+Player *Player::current_player = nullptr;
 
 SDL_Point operator+(SDL_Point left, SDL_Point right)
 {
@@ -315,6 +315,8 @@ void FieldMeta::load(SDL_Renderer *renderer, Layout *layout)
     }
     if (this->owner->get_id().is_nil())
         color = {0x77, 0x77, 0x77, 0xff};
+    if (this->fighting)
+        color = {0x0, 0x77, 0x77, 0xff};
     filledPolygonRGBA(renderer, vx, vy, 6, color.r, color.g, color.b, 0x77);
     SDL_Color inverse;
     inverse.r = (Uint8) (color.r + 0x77);
@@ -420,6 +422,8 @@ void HexagonGrid::render(Renderer *renderer)
 
 void HexagonGrid::handle_event(SDL_Event *event)
 {
+    Player *attacking;
+    Player *owner;
     SDL_Point mouse = {0, 0};
     SDL_GetMouseState(&mouse.x, &mouse.y);
     int scroll = this->layout->size / 10 * event->wheel.y;
@@ -472,7 +476,23 @@ void HexagonGrid::handle_event(SDL_Event *event)
                     trigger_event(BOB_FIELDSELECTEDEVENT, 0, (void *) this->marker, nullptr);
                     break;
                 case SDL_BUTTON_LEFT:
-                    trigger_event(BOB_FIELDSELECTEDEVENT, 1, (void *) this->marker, nullptr);
+                    owner = this->marker->get_owner();
+                    if (*owner == *(Player::current_player))
+                    {
+                        if (this->first_attack != nullptr)
+                        {
+                            this->first_attack->set_fighting(false);
+                        }
+                        this->first_attack = this->marker;
+                        this->first_attack->set_fighting(true);
+                    }
+                    else if (this->first_attack != nullptr)
+                    {
+                        attacking = this->first_attack->get_owner();
+                        attacking->fight(this->marker);
+                        this->first_attack->set_fighting(false);
+                        this->first_attack = nullptr;
+                    }
                     break;
                 default:
                     break;

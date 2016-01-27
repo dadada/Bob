@@ -61,6 +61,35 @@ protected:
     TTF_Font *font;
 };
 
+class TextInputBox : TextBox
+{
+public:
+    TextInputBox(Renderer *renderer_, SDL_Rect dimensions_, SDL_Color color_, TTF_Font *font_)
+            : TextBox(renderer_, dimensions_, color_, font_), bg_dimensions(dimensions_), input("")
+    {
+        this->visible = false;
+        this->load_text(" ");
+    }
+
+    void start();
+
+    void stop();
+
+    bool get_active();
+
+    void handle_event(const SDL_Event *event);
+
+    void render(Renderer *ext_renderer);
+
+    void update_dimensions(SDL_Rect rect);
+
+    std::string get_input() { return this->input; }
+
+private:
+    SDL_Rect bg_dimensions;
+    std::string input;
+};
+
 class FieldBox : public TextBox
 {
 public:
@@ -98,10 +127,29 @@ private:
     bool active; // this upgrade has been unlocked
 };
 
-/*class NextTurnButtonBox : public TextBox
+class NextTurnButtonBox : public TextBox
 {
+public:
+    NextTurnButtonBox(Renderer *renderer, SDL_Rect dimensions, SDL_Color color, TTF_Font *font_,
+                      std::vector<Player *> *players_)
+            : TextBox(renderer, dimensions, color, font_), players(players_)
+    {
+        this->current_player = this->players->begin();
+        Player::current_player = *(this->current_player);
+        std::ostringstream text;
+        // Warning, next line looks ugly @.@
+        text << "NEXT TURN" << "\n\n" << (*(this->current_player))->get_name();
+        this->load_text(text.str());
+        this->visible = true;
+    }
+
+    void handle_event(const SDL_Event *event);
+
+private:
+    std::vector<Player *> *players;
+    std::vector<Player *>::iterator current_player;
 };
- */
+
 
 class UpgradeBox : public Box
 {

@@ -3,6 +3,7 @@
 void Game::handle_event(SDL_Event *event)
 {
     static SDL_Point window_size;
+    std::string input;
     switch (event->type)
     {
         case (SDL_QUIT):
@@ -15,6 +16,8 @@ void Game::handle_event(SDL_Event *event)
                 {
                     case SDL_WINDOWEVENT_SIZE_CHANGED:
                         this->grid->update_dimensions({event->window.data1, event->window.data2});
+                        this->text_input_box->update_dimensions({0, event->window.data2 - 12, event->window.data1,
+                                                                 event->window.data2});
                         break;
                     default:
                         break;
@@ -22,44 +25,83 @@ void Game::handle_event(SDL_Event *event)
             }
             break;
         case SDL_MOUSEMOTION:
-            grid->handle_event(event);
-            this->field_box->handle_event(event);
-            this->upgrade_box->handle_event(event);
+            if (!this->text_input_box->get_active())
+            {
+                grid->handle_event(event);
+                this->field_box->handle_event(event);
+                this->upgrade_box->handle_event(event);
+            }
             break;
         case SDL_MOUSEWHEEL:
-            grid->handle_event(event);
+            if (!this->text_input_box->get_active())
+            {
+                grid->handle_event(event);
+            }
             break;
         case SDL_MOUSEBUTTONDOWN:
-            this->grid->handle_event(event);
-            this->field_box->handle_event(event);
-            this->upgrade_box->handle_event(event);
+            if (!this->text_input_box->get_active())
+            {
+                this->grid->handle_event(event);
+                this->field_box->handle_event(event);
+                this->upgrade_box->handle_event(event);
+                this->next_turn_button->handle_event(event);
+            }
             break;
         case SDL_KEYDOWN:
             switch (event->key.keysym.sym)
             {
                 case SDLK_w:
-                    this->move[0] = true;
+                    if (!this->text_input_box->get_active())
+                        this->move[0] = true;
                     break;
                 case SDLK_a:
-                    this->move[1] = true;
+                    if (!this->text_input_box->get_active())
+                        this->move[1] = true;
                     break;
                 case SDLK_s:
-                    this->move[2] = true;
+                    if (!this->text_input_box->get_active())
+                        this->move[2] = true;
                     break;
                 case SDLK_d:
-                    this->move[3] = true;
+                    if (!this->text_input_box->get_active())
+                        this->move[3] = true;
                     break;
                 case SDLK_f:
-                    window_size = this->window->toggle_fullscreen();
-                    this->grid->update_dimensions(window_size);
-                    this->field_box->update_position({0, 20});
-                    this->upgrade_box->set_visible(false);
+                    if (!this->text_input_box->get_active())
+                    {
+                        window_size = this->window->toggle_fullscreen();
+                        this->grid->update_dimensions(window_size);
+                        this->text_input_box->update_dimensions({0, window_size.y - window_size.x, 12});
+                        this->next_turn_button->update_position({window_size.x - 100, window_size.y - 100});
+                        this->upgrade_box->set_visible(false);
+                    }
                     break;
                 case SDLK_ESCAPE:
-                    this->quit = true;
+                    if (this->text_input_box->get_active())
+                    {
+                        this->text_input_box->stop();
+                        this->test_box->set_visible(false);
+                    }
+                    else
+                    {
+                        this->text_input_box->start();
+                        this->test_box->set_visible(true);
+
+                    }
+                    break;
+                case SDLK_RETURN:
+                    input = this->text_input_box->get_input();
+                    if (input == "/quit")
+                    {
+                        this->quit = true;
+                    }
                     break;
                 default:
                     break;
+            }
+            if (this->text_input_box->get_active())
+            {
+                this->text_input_box->handle_event(event);
             }
             break;
         case SDL_KEYUP:
@@ -81,6 +123,17 @@ void Game::handle_event(SDL_Event *event)
                     break;
             }
             break;
+        case SDL_TEXTINPUT:
+            if (this->text_input_box->get_active())
+            {
+                this->text_input_box->handle_event(event);
+            }
+            break;
+        case SDL_TEXTEDITING:
+            if (this->text_input_box->get_active())
+            {
+                this->text_input_box->handle_event(event);
+            }
         default:
             if (event->type == BOB_MARKERUPDATE
                 || event->type == BOB_NEXTROUNDEVENT
@@ -91,18 +144,6 @@ void Game::handle_event(SDL_Event *event)
                 this->grid->handle_event(event);
                 this->field_box->handle_event(event);
                 this->upgrade_box->handle_event(event);
-            }
-            else
-            {
-                if (event->type == BOB_NEXTTURNEVENT)
-                {
-                    this->current_player++;
-                    if (Player::current_player == Player::players.end())
-                    {
-                        Player::current_player = Player::players.begin();
-                        trigger_event(BOB_NEXTROUNDEVENT, 0x0, (void *) *(Player::current_player), nullptr);
-                    }
-                }
             }
             break;
     }
@@ -151,6 +192,8 @@ void Game::render()
         this->test_box->render(this->renderer);
         this->field_box->render(this->renderer);
         this->upgrade_box->render(this->renderer);
+        this->next_turn_button->render(this->renderer);
+        this->text_input_box->render(this->renderer);
         this->renderer->present();
     }
     catch (const SDL_RendererException &err)
@@ -189,7 +232,7 @@ int main(int, char **)
     }
     SDL_Rect bounds;
     SDL_GetDisplayBounds(0, &bounds);
-    SDL_Rect window_dimensions = {SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, bounds.w, bounds.h};
+    SDL_Rect window_dimensions = {SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 600, 600};
     Game *game = new Game(&window_dimensions, 20);
     int exit_status = 1;
     exit_status = game->game_loop();

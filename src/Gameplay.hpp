@@ -543,8 +543,8 @@ public:
         return !(*this == rhs);
     }
 
-    static std::vector<Player *> players;
-    static std::vector<Player *>::iterator current_player;
+    static Player *current_player;
+
 private:
     boost::uuids::uuid uuid;
     SDL_Color color;
@@ -561,6 +561,7 @@ public:
     FieldMeta(HexagonGrid *grid_, Field field_, Player *owner_)
             : grid(grid_), field(field_), owner(owner_)
     {
+        this->fighting = false;
         this->upgrades = 0;
         static std::random_device rd;
         std::mt19937 rng(rd());
@@ -601,7 +602,11 @@ public:
 
     FieldMeta *get_neighbor(Uint8 direction);
 
+    bool get_fighting() { return this->fighting; }
+
+    void set_fighting(bool state) { this->fighting = state; }
 private:
+    bool fighting;
     const Field field;
     HexagonGrid *grid;
     Player *owner;
@@ -620,6 +625,7 @@ public:
     HexagonGrid(Sint16 grid_radius, Layout *layout_, Renderer *renderer_)
             : layout(layout_), radius(grid_radius), renderer(renderer_)
     {
+        this->first_attack = nullptr;
         this->texture = nullptr;
         this->panning = false;
         std::unordered_map<Field, FieldMeta *> fields = std::unordered_map<Field, FieldMeta *>();
@@ -681,6 +687,7 @@ public:
 
 private:
     bool changed;
+    FieldMeta *first_attack;
     Renderer *renderer;
     SDL_Texture *texture;
     std::unordered_map<Field, FieldMeta *> fields;

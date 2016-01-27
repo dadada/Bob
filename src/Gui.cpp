@@ -21,6 +21,7 @@ TTF_Font *load_font_from_file(std::string path_to_file, int size)
 
 bool TextBox::load_text(std::string text)
 {
+    this->renderer->set_draw_color({0, 0, 0, 0xff});
     const char *displayed_text = text.c_str();
     SDL_Surface *text_surface = TTF_RenderUTF8_Blended_Wrapped(this->font, displayed_text, this->color, 100);
     if (text_surface == nullptr)
@@ -196,7 +197,10 @@ void UpgradeButtonBox::handle_event(const SDL_Event *event)
         if (inside_target(&(this->dimensions), &pos))
         {
             FieldMeta *field = this->box->get_field();
-            field->upgrade(this->upgrade);
+            if (*(Player::current_player) == *(field->get_owner()))
+            {
+                field->upgrade(this->upgrade);
+            }
         }
     }
 }
@@ -276,4 +280,111 @@ void FieldBox::update_position(SDL_Point point)
 {
     this->dimensions.x = point.x;
     this->dimensions.y = point.y - this->dimensions.h - 6;
+}
+
+void NextTurnButtonBox::handle_event(const SDL_Event *event)
+{
+    if (event->type == SDL_MOUSEBUTTONDOWN)
+    {
+        SDL_Point mouse;
+        SDL_GetMouseState(&(mouse.x), &(mouse.y));
+        if (inside_target(&(this->dimensions), &mouse))
+        {
+            Player *last_player = Player::current_player;
+            this->current_player = this->current_player + 1;
+            if (this->current_player == players->end())
+            {
+                this->current_player = players->begin();
+                trigger_event(BOB_NEXTROUNDEVENT, 0, last_player, Player::current_player);
+            }
+            else
+            {
+                trigger_event(BOB_NEXTTURNEVENT, 0, last_player, Player::current_player);
+            }
+            Player::current_player = *(this->current_player);
+            std::ostringstream text;
+            text << "NEXT TURN" << "\n\n" << Player::current_player->get_name();
+            this->load_text(text.str());
+        }
+    }
+}
+
+void TextInputBox::start()
+{
+    this->visible = true;
+    SDL_StartTextInput();
+}
+
+void TextInputBox::stop()
+{
+    this->visible = false;
+    SDL_StopTextInput();
+}
+
+void TextInputBox::handle_event(const SDL_Event *event)
+{
+    bool changed = false;
+    if (event->type == SDL_KEYDOWN)
+    {
+        if (event->key.keysym.sym == SDLK_RETURN)
+        {
+            this->input = "";
+            changed = true;
+        }
+        else if (event->key.keysym.sym == SDLK_BACKSPACE && this->input.length() > 0)
+        {
+            input.pop_back();
+            changed = true;
+        }
+        else if (event->key.keysym.sym == SDLK_c && SDL_GetModState() & KMOD_CTRL)
+        {
+            SDL_SetClipboardText(input.c_str());
+            changed = true;
+        }
+        else if (event->key.keysym.sym == SDLK_v && SDL_GetModState() & KMOD_CTRL)
+        {
+            input = SDL_GetClipboardText();
+
+        }
+    }
+    else if (event->type == SDL_TEXTINPUT)
+    {
+        if (!((event->text.text[0] == 'c' || event->text.text[0] == 'C')
+              && (event->text.text[0] == 'v' || event->text.text[0] == 'V') && SDL_GetModState() & KMOD_CTRL))
+        {
+            input += event->text.text;
+            changed = true;
+        }
+    }
+    else if (event->type == SDL_TEXTEDITING)
+    {
+        // nothin atm
+    }
+    if (changed)
+    {
+        std::string foo = input; // because SDL_ttf will complain if not
+        foo += " ";
+        this->load_text(foo);
+    }
+}
+
+void TextInputBox::render(Renderer *ext_renderer)
+{
+    if (this->texture != nullptr && this->visible)
+    {
+        ext_renderer->set_draw_color({0xff, 0xff, 0xff, 0x00});
+        SDL_RenderFillRect(ext_renderer->get_renderer(), &(bg_dimensions));
+        ext_renderer->copy(this->texture, nullptr, &(this->dimensions));
+    }
+}
+
+void TextInputBox::update_dimensions(SDL_Rect rect)
+{
+    this->bg_dimensions = rect;
+    this->dimensions = bg_dimensions;
+}
+
+bool TextInputBox::get_active()
+{
+    return SDL_IsTextInputActive() == SDL_TRUE;
 }

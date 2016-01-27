@@ -29,10 +29,14 @@ public:
         }
         this->quit = false;
         SDL_Color fg = {0x00, 0x00, 0x00, 0xff};
+        this->players = std::vector<Player *>();
+        Player *default_player = new Player();
+        this->players.push_back(default_player);
         try
         {
             this->font = load_font_from_file("/usr/share/fonts/dejavu/DejaVuSans.ttf", 12);
             this->window = new Window(TITLE, window_dimensions, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+            SDL_Point window_size = this->window->get_size();
             this->renderer = new Renderer(this->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
                                                             | SDL_RENDERER_TARGETTEXTURE);
             this->grid = new HexagonGrid(size, this->layout, this->renderer);
@@ -41,6 +45,12 @@ public:
             this->upgrade_box = new UpgradeBox(this->renderer, {0, 0, 1, 1}, fg, this->font, center);
             this->test_box = new TextBox(this->renderer, {0, 0, 1, 1}, fg, this->font);
             this->test_box->set_visible(true);
+            this->next_turn_button = new NextTurnButtonBox(this->renderer,
+                                                           {window_size.x - 100, window_size.y - 100, 1, 1}, fg,
+                                                           this->font, &(this->players));
+            this->text_input_box = new TextInputBox(this->renderer, {0, window_size.y - 12, window_size.x, 12}, fg,
+                                                    this->font);
+            this->text_input_box->stop();
         }
         catch (const SDL_Exception &sdl_except)
         {
@@ -52,6 +62,12 @@ public:
 
     ~Game()
     {
+        for (auto player : this->players)
+        {
+            delete player;
+        }
+        delete text_input_box;
+        delete this->next_turn_button;
         delete this->test_box;
         delete this->upgrade_box;
         delete this->field_box;
@@ -70,7 +86,9 @@ public:
     int game_loop();
 
 private:
-
+    TextInputBox *text_input_box;
+    std::vector<Player *> players;
+    NextTurnButtonBox *next_turn_button;
     UpgradeBox *upgrade_box;
     FieldBox *field_box;
     TextBox *test_box;

@@ -13,6 +13,7 @@ extern const Uint32 BOB_FIELDUPDATEEVENT;
 extern const Uint32 BOB_FIELDSELECTEDEVENT;
 extern const Uint32 BOB_FIELDUPGRADEVENT;
 extern const Uint32 BOB_NEXTTURNEVENT;
+extern const Uint32 BOB_ATTACKEVENTS;
 #endif
 
 Uint32 register_events(Uint32 n);
