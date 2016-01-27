@@ -1,5 +1,7 @@
 #include "Gameplay.hpp"
 
+static std::vector<Player *>::iterator Player::current_player = Player::players.end();
+
 SDL_Point operator+(SDL_Point left, SDL_Point right)
 {
     return {left.x + right.x, left.y + right.y};
@@ -116,6 +118,27 @@ std::vector<Point> Field::field_to_polygon(const Layout *layout) const
     return corners;
 }
 
+std::vector<SDL_Point> Field::field_to_polygon_sdl(const Layout *layout) const
+{
+    std::vector<SDL_Point> corners;
+    for (uint8_t i = 0; i < 6; i++)
+    {
+        Point center = this->field_to_point(layout);
+        Point offset = field_corner_offset(i, layout);
+        SDL_Point p;
+        p.x = (int) offset.x + center.x;
+        p.y = (int) offset.y + center.y;
+        corners.push_back(p);
+    }
+    Point center = this->field_to_point(layout);
+    Point offset = field_corner_offset(0, layout);
+    SDL_Point p;
+    p.x = (int) offset.x + center.x;
+    p.y = (int) offset.y + center.y;
+    corners.push_back(p);
+    return corners;
+}
+
 std::vector<Point> Field::field_to_polygon_normalized(const Layout *layout) const
 {
     std::vector<Point> corners;
@@ -127,73 +150,6 @@ std::vector<Point> Field::field_to_polygon_normalized(const Layout *layout) cons
     return corners;
 }
 
-void FieldMeta::render(SDL_Renderer *renderer, Layout *layout)
-{
-    Point precise_location = this->field.field_to_point(layout);
-    SDL_Point location;
-    location.x = (int) precise_location.x;
-    location.y = (int) precise_location.y;
-    std::vector<Point> polygon = this->field.field_to_polygon(layout);
-    SDL_Color color = this->owner->get_color();
-    Sint16 vx[6];
-    Sint16 vy[6];
-    for (int i = 0; i < 6; i++)
-    {
-        vx[i] = (Sint16) polygon[i].x;
-        vy[i] = (Sint16) polygon[i].y;
-    }
-    if (this->owner->get_id().is_nil())
-        color = {0x77, 0x77, 0x77, 0x77};
-    filledPolygonRGBA(renderer, vx, vy, 6, color.r, color.g, color.b, 0x22);
-    SDL_Color inverse;
-    inverse.r = (Uint8) (color.r + 0x77);
-    inverse.g = (Uint8) (color.g + 0x77);
-    inverse.b = (Uint8) (color.b + 0x77);
-    inverse.a = 0xff;
-    double resource_size = layout->size / 4;
-    if (this->resources_base.triangle > 0)
-    {
-        static const SDL_Point trigon[] = {{0,  -1},
-                                           {-1, 1},
-                                           {1,  1}};
-        for (int i = 0; i < 3; i++)
-        {
-            vx[i] = (Sint16) (location.x + (trigon[i].x * resource_size));
-            vy[i] = (Sint16) (location.y + (trigon[i].y * resource_size));
-        }
-        trigonRGBA(renderer, vx[0], vy[0], vx[1], vy[1], vx[2], vy[2], inverse.r, inverse.g, inverse.b, inverse.a);
-    }
-    if (this->resources_base.circle > 0)
-    {
-        circleRGBA(renderer, (Sint16) (location.x), Sint16(location.y), (Sint16) resource_size, inverse.r, inverse.g,
-                   inverse.b, inverse.a);
-    }
-    if (this->resources_base.square > 0)
-    {
-        static const SDL_Point square[] = {{-1, -1},
-                                           {-1, 1},
-                                           {1,  1},
-                                           {1,  -1}};
-        for (int i = 0; i < 4; i++)
-        {
-            vx[i] = (Sint16) (location.x + square[i].x * resource_size);
-            vy[i] = (Sint16) (location.y + square[i].y * resource_size);
-        }
-        polygonRGBA(renderer, vx, vy, 4, inverse.r, inverse.g, inverse.b, inverse.a);
-    }
-}
-
-void FieldMeta::trigger_event(Uint32 type, Sint32 code)
-{
-    SDL_Event event;
-    SDL_memset(&event, 0, sizeof(event)); /* or SDL_zero(event) */
-    event.type = type;
-    event.user.code = code;
-    event.user.data1 = static_cast<void *>(this);
-    event.user.data2 = 0;
-    SDL_PushEvent(&event);
-}
-
 void FieldMeta::regenerate_resources()
 {
     this->resources = resources_base;
@@ -203,7 +159,7 @@ void FieldMeta::regenerate_resources()
         this->resources *= 2;
     if (this->upgrades[Regeneration_3])
         this->resources *= 2;
-    this->trigger_event(BOB_FIELDUPDATEEVENT, 0);
+    trigger_event(BOB_FIELDUPDATEEVENT, 0, (void *) this, nullptr);
 }
 
 Resource HexagonGrid::get_resources_of_cluster(Cluster *cluster)
@@ -237,7 +193,7 @@ bool FieldMeta::upgrade(Upgrade upgrade)
             this->upgrades[upgrade] = true;
         }
     }
-    this->trigger_event(BOB_FIELDUPGRADEVENT, 0);
+    trigger_event(BOB_FIELDUPGRADEVENT, 0, (void *) this, nullptr);
     return this->upgrades[upgrade];
 }
 
@@ -283,7 +239,6 @@ Cluster HexagonGrid::get_cluster(FieldMeta *field)
 void FieldMeta::consume_resources(Resource costs)
 {
     this->resources -= costs;
-    this->trigger_event(BOB_FIELDUPDATEEVENT, 0);
 }
 
 Resource HexagonGrid::consume_resources_of_cluster(Cluster *cluster, Resource costs)
@@ -295,6 +250,7 @@ Resource HexagonGrid::consume_resources_of_cluster(Cluster *cluster, Resource co
         costs -= meta->get_resources();
         meta->consume_resources(tmp);
     }
+    trigger_event(BOB_FIELDUPDATEEVENT, 0, (void *) this, nullptr);
     return costs; // > {0, 0, 0} means there were not enough resources
 }
 
@@ -335,35 +291,131 @@ bool Player::fight(FieldMeta *field)
 
 void FieldMeta::handle_event(const SDL_Event *event)
 {
-    if (event->type == BOB_NEXTTURNEVENT)
+    if (event->type == BOB_NEXTROUNDEVENT)
+    {
         this->regenerate_resources();
+    }
 }
 
-bool HexagonGrid::render(SDL_Renderer *renderer)
+
+void FieldMeta::load(SDL_Renderer *renderer, Layout *layout)
 {
+    Point precise_location = this->field.field_to_point(layout);
+    SDL_Point location;
+    location.x = (int) precise_location.x;
+    location.y = (int) precise_location.y;
+    std::vector<Point> polygon = this->field.field_to_polygon(layout);
+    SDL_Color color = this->owner->get_color();
+    Sint16 vx[6];
+    Sint16 vy[6];
+    for (int i = 0; i < 6; i++)
+    {
+        vx[i] = (Sint16) polygon[i].x;
+        vy[i] = (Sint16) polygon[i].y;
+    }
+    if (this->owner->get_id().is_nil())
+        color = {0x77, 0x77, 0x77, 0xff};
+    filledPolygonRGBA(renderer, vx, vy, 6, color.r, color.g, color.b, 0x77);
+    SDL_Color inverse;
+    inverse.r = (Uint8) (color.r + 0x77);
+    inverse.g = (Uint8) (color.g + 0x77);
+    inverse.b = (Uint8) (color.b + 0x77);
+    inverse.a = 0xff;
+    double resource_size = layout->size / 4;
+    if (this->resources_base.triangle > 0)
+    {
+        static const SDL_Point trigon[] = {{0,  -1},
+                                           {-1, 1},
+                                           {1,  1}};
+        for (int i = 0; i < 3; i++)
+        {
+            vx[i] = (Sint16) (location.x + (trigon[i].x * resource_size));
+            vy[i] = (Sint16) (location.y + (trigon[i].y * resource_size));
+        }
+        trigonRGBA(renderer, vx[0], vy[0], vx[1], vy[1], vx[2], vy[2], inverse.r, inverse.g, inverse.b, inverse.a);
+    }
+    if (this->resources_base.circle > 0)
+    {
+        circleRGBA(renderer, (Sint16) (location.x), Sint16(location.y), (Sint16) resource_size, inverse.r, inverse.g,
+                   inverse.b, inverse.a);
+    }
+    if (this->resources_base.square > 0)
+    {
+        static const SDL_Point square[] = {{-1, -1},
+                                           {-1, 1},
+                                           {1,  1},
+                                           {1,  -1}};
+        for (int i = 0; i < 4; i++)
+        {
+            vx[i] = (Sint16) (location.x + square[i].x * resource_size);
+            vy[i] = (Sint16) (location.y + square[i].y * resource_size);
+        }
+        polygonRGBA(renderer, vx, vy, 4, inverse.r, inverse.g, inverse.b, inverse.a);
+    }
+}
+
+void HexagonGrid::load()
+{
+    if (this->texture == nullptr)
+    {
+        SDL_Rect db;
+        SDL_GetDisplayBounds(0, &db);
+        this->texture = SDL_CreateTexture(this->renderer->get_renderer(), SDL_PIXELFORMAT_RGBA8888,
+                                          SDL_TEXTUREACCESS_TARGET, db.w, db.h);
+    }
+    this->renderer->set_target(this->texture);
+    renderer->set_draw_color({0x00, 0x00, 0x00, 0x00});
+    this->renderer->clear();
+    SDL_Rect bounds = this->layout->box;
+    bounds.x -= 4 * this->layout->size;
+    bounds.y -= 4 * this->layout->size;
+    bounds.w += 8 * this->layout->size;
+    bounds.h += 8 * this->layout->size;
+    renderer->set_draw_color({0xff, 0xff, 0xff, 0xff});
+    renderer->set_blend_mode(SDL_BLENDMODE_BLEND);
     Field some_field = {0, 0, 0};
-    std::vector<Point> polygon = some_field.field_to_polygon_normalized(this->layout);
-    assert(polygon.size() > 5);
-    Sint16 x[6];
-    Sint16 y[6];
+    std::vector<Point> norm_polygon = some_field.field_to_polygon_normalized(this->layout);
     for (std::pair<Field, FieldMeta *> const &elem : this->fields)
     {
         Field field = elem.first;
         Point center = field.field_to_point(this->layout);
-        for (uint8_t i = 0; i < 6; i++)
+        SDL_Point i_c;
+        i_c.x = (int) center.x;
+        i_c.y = (int) center.y;
+        if (inside_target(&bounds, &i_c))
         {
-            x[i] = (Sint16) (center.x + polygon[i].x);
-            y[i] = (Sint16) (center.y + polygon[i].y);
+            elem.second->load(this->renderer->get_renderer(), this->layout);
+            //std::vector<SDL_Point> polygon = field.field_to_polygon_sdl(this->layout);
+            Sint16 vx[6];
+            Sint16 vy[6];
+            for (int i = 0; i < 6; i++)
+            {
+                vx[i] = (Sint16) (center.x + norm_polygon[i].x);
+                vy[i] = (Sint16) (center.y + norm_polygon[i].y);
+            }
+            /*if (SDL_RenderDrawLines(renderer->get_renderer(), polygon.data(), 7) < 0)
+            {
+                throw SDL_RendererException();
+            }*/
+            polygonRGBA(renderer->get_renderer(), vx, vy, 6, 0xff, 0xff, 0xff, 0xff);
+            if (elem.first == this->marker->get_field())
+            {
+                filledPolygonRGBA(this->renderer->get_renderer(), vx, vy, 6, 0x77, 0x77, 0x77, 0x77);
+            }
         }
-        const SDL_Color color = {0xff, 0xff, 0xff, 0xff};
-        polygonRGBA(renderer, x, y, 6, color.r, color.g, color.b, color.a);
-        if (elem.first == this->marker->get_field())
-        {
-            filledPolygonRGBA(renderer, x, y, 6, 0x77, 0x77, 0x77, 0x22);
-        }
-        elem.second->render(renderer, this->layout);
     }
-    return true;
+    this->renderer->set_target(nullptr);
+}
+
+void HexagonGrid::render(Renderer *renderer)
+{
+    if (this->changed)
+    {
+        this->load();
+        this->changed = false;
+    }
+    //this->load();
+    renderer->copy(this->texture, &(this->layout->box), &(this->layout->box));
 }
 
 void HexagonGrid::handle_event(SDL_Event *event)
@@ -380,9 +432,9 @@ void HexagonGrid::handle_event(SDL_Event *event)
             {
                 this->layout->size = 20;
             }
-            else if (old_size + scroll > 1000)
+            else if (old_size + scroll > 100)
             {
-                this->layout->size = 1000;
+                this->layout->size = 100;
             }
             else
             {
@@ -390,7 +442,14 @@ void HexagonGrid::handle_event(SDL_Event *event)
             }
             this->move(((1.0 - (double) this->layout->size / old_size) * (mouse - old_origin)));
             if (!on_rectangle(&layout->box))
+            {
                 this->layout->size -= scroll;
+            }
+            else
+            {
+                this->update_marker();
+                this->changed = true;
+            }
             break;
         case SDL_MOUSEMOTION:
             if (this->panning)
@@ -400,8 +459,8 @@ void HexagonGrid::handle_event(SDL_Event *event)
                 p.x = (int) marker_pos.x;
                 p.y = (int) marker_pos.y;
                 this->move(mouse - p);
+                this->changed = true;
             }
-            this->update_marker();
             break;
         case SDL_MOUSEBUTTONDOWN:
             switch (event->button.button)
@@ -410,13 +469,23 @@ void HexagonGrid::handle_event(SDL_Event *event)
                     this->panning = !(this->panning);
                     break;
                 case SDL_BUTTON_RIGHT:
-                    this->marker->trigger_event(BOB_FIELDSELECTED, 0);
+                    trigger_event(BOB_FIELDSELECTEDEVENT, 0, (void *) this->marker, nullptr);
+                    break;
+                case SDL_BUTTON_LEFT:
+                    trigger_event(BOB_FIELDSELECTEDEVENT, 1, (void *) this->marker, nullptr);
                     break;
                 default:
                     break;
             }
             break;
         default:
+            if (event->type == BOB_NEXTROUNDEVENT)
+            {
+                for (std::pair<Field, FieldMeta *> field : this->fields)
+                {
+                    field.second->regenerate_resources();
+                }
+            }
             break;
     }
     for (auto elem : this->fields)
@@ -432,28 +501,27 @@ void HexagonGrid::move(SDL_Point m)
     if (!on_rectangle(&layout->box))
         this->layout->origin = this->layout->origin - m;
     this->update_marker();
+    this->changed = true;
 }
 
 void HexagonGrid::update_marker()
 {
-    if (!Timer::MOUSE_LOCKED)
+    SDL_Point m = {0, 0};
+    SDL_GetMouseState(&(m.x), &(m.y));
+    Point p = {0.0, 0.0};
+    p.x = m.x;
+    p.y = m.y;
+    FieldMeta *n_marker = this->point_to_field(p);
+    if (n_marker != nullptr)
     {
-        SDL_Point m = {0, 0};
-        SDL_GetMouseState(&(m.x), &(m.y));
-        Point p = {0.0, 0.0};
-        p.x = m.x;
-        p.y = m.y;
-        FieldMeta *n_marker = this->point_to_field(p);
-        if (n_marker != nullptr)
-        {
-            this->marker = n_marker;
-            n_marker->trigger_event(BOB_MARKERUPDATE, 0);
-        }
-        else
-        {
-            marker->trigger_event(BOB_MARKERUPDATE, 1);
-        }
+        this->marker = n_marker;
+        trigger_event(BOB_MARKERUPDATE, 0, (void *) n_marker, nullptr);
     }
+    else
+    {
+        trigger_event(BOB_MARKERUPDATE, 1, (void *) marker, nullptr);
+    }
+    this->changed = true;
 }
 
 FieldMeta *HexagonGrid::point_to_field(const Point p)
@@ -503,4 +571,10 @@ void HexagonGrid::update_dimensions(SDL_Point dimensions)
 Point HexagonGrid::field_to_point(FieldMeta *field)
 {
     return field->get_field().field_to_point(this->layout);
+}
+
+bool inside_target(const SDL_Rect *target, const SDL_Point *position)
+{
+    return target->x < position->x && target->x + target->w > position->x && target->y < position->y &&
+           target->y + target->h > position->y;
 }

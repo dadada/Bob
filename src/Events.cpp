@@ -1,11 +1,11 @@
 #include "Events.hpp"
 
-const Uint32 BOB_NEXTTURNEVENT = register_events(1);
+const Uint32 BOB_NEXTROUNDEVENT = register_events(1);
 const Uint32 BOB_MARKERUPDATE = register_events(1);
 const Uint32 BOB_FIELDUPDATEEVENT = register_events(1);
-const Uint32 BOB_FIELDSELECTED = register_events(1);
+const Uint32 BOB_FIELDSELECTEDEVENT = register_events(1);
 const Uint32 BOB_FIELDUPGRADEVENT = register_events(1);
-
+const Uint32 BOB_NEXTTURNEVENT = register_events(1);
 
 bool Timer::MOUSE_LOCKED = false;
 
@@ -33,4 +33,15 @@ Uint32 register_events(Uint32 n)
     if (base_event == ((Uint32) - 1))
         throw SDL_Exception("Failed to register events!");
     return base_event;
+}
+
+void trigger_event(Uint32 type, Sint32 code, void *data1, void *data2)
+{
+    SDL_Event event;
+    SDL_memset(&event, 0, sizeof(event)); /* or SDL_zero(event) */
+    event.type = type;
+    event.user.code = code;
+    event.user.data1 = static_cast<void *>(data1);
+    event.user.data2 = data2;
+    SDL_PushEvent(&event);
 }

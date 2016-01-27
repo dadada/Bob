@@ -82,13 +82,27 @@ void Game::handle_event(SDL_Event *event)
             }
             break;
         default:
-            if (event->type == BOB_MARKERUPDATE || event->type == BOB_NEXTTURNEVENT ||
-                event->type == BOB_FIELDUPDATEEVENT || event->type == BOB_FIELDSELECTED
+            if (event->type == BOB_MARKERUPDATE
+                || event->type == BOB_NEXTROUNDEVENT
+                || event->type == BOB_FIELDUPDATEEVENT
+                || event->type == BOB_FIELDSELECTEDEVENT
                 || event->type == BOB_FIELDUPGRADEVENT)
             {
                 this->grid->handle_event(event);
                 this->field_box->handle_event(event);
                 this->upgrade_box->handle_event(event);
+            }
+            else
+            {
+                if (event->type == BOB_NEXTTURNEVENT)
+                {
+                    this->current_player++;
+                    if (Player::current_player == Player::players.end())
+                    {
+                        Player::current_player = Player::players.begin();
+                        trigger_event(BOB_NEXTROUNDEVENT, 0x0, (void *) *(Player::current_player), nullptr);
+                    }
+                }
             }
             break;
     }
@@ -112,6 +126,7 @@ int Game::game_loop()
         {
             fps = frame_counter / (this->frame_timer->reset_timer() / 1000.0);
             frame_counter = 0;
+            std::cout << fps << std::endl;
             this->test_box->load_text(std::to_string(fps));
         }
         SDL_Event event;
@@ -130,12 +145,12 @@ void Game::render()
 {
     try
     {
-        this->renderer->set_draw_color({0x0, 0x0, 0x0, 0x0});
+        this->renderer->set_draw_color({0x0, 0x0, 0x0, 0xff});
         this->renderer->clear();
+        this->grid->render(this->renderer);
         this->test_box->render(this->renderer);
         this->field_box->render(this->renderer);
         this->upgrade_box->render(this->renderer);
-        this->grid->render(this->renderer->get_renderer());
         this->renderer->present();
     }
     catch (const SDL_RendererException &err)
@@ -175,7 +190,7 @@ int main(int, char **)
     SDL_Rect bounds;
     SDL_GetDisplayBounds(0, &bounds);
     SDL_Rect window_dimensions = {SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, bounds.w, bounds.h};
-    Game *game = new Game(&window_dimensions, 6);
+    Game *game = new Game(&window_dimensions, 20);
     int exit_status = 1;
     exit_status = game->game_loop();
     delete game;

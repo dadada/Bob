@@ -22,6 +22,7 @@
 #include <SDL2/SDL_render.h>
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include "Events.hpp"
+#include "Wrapper.hpp"
 
 SDL_Point operator+(SDL_Point left, SDL_Point right);
 
@@ -299,6 +300,8 @@ struct Field
 
     std::vector<Point> field_to_polygon(const Layout *layout) const;
 
+    std::vector<SDL_Point> field_to_polygon_sdl(const Layout *layout) const;
+
     static Field cubic_round(double x, double y, double z);
 
     static Field hex_direction(Uint8 direction);
@@ -540,6 +543,8 @@ public:
         return !(*this == rhs);
     }
 
+    static std::vector<Player *> players;
+    static std::vector<Player *>::iterator current_player;
 private:
     boost::uuids::uuid uuid;
     SDL_Color color;
@@ -580,7 +585,7 @@ public:
 
     void set_owner(Player *player) { this->owner = player; }
 
-    void render(SDL_Renderer *renderer, Layout *layout);
+    void load(SDL_Renderer *renderer, Layout *layout);
 
     Resource get_resources() { return this->resources; }
 
@@ -595,8 +600,6 @@ public:
     void handle_event(const SDL_Event *event);
 
     FieldMeta *get_neighbor(Uint8 direction);
-
-    void trigger_event(Uint32 type, Sint32 code);
 
 private:
     const Field field;
@@ -614,9 +617,11 @@ typedef std::unordered_set<FieldMeta *> Cluster;
 class HexagonGrid
 {
 public:
-    HexagonGrid(Sint16 grid_radius, Layout *layout_)
-            : layout(layout_), radius(grid_radius)
+    HexagonGrid(Sint16 grid_radius, Layout *layout_, Renderer *renderer_)
+            : layout(layout_), radius(grid_radius), renderer(renderer_)
     {
+        this->texture = nullptr;
+        this->panning = false;
         std::unordered_map<Field, FieldMeta *> fields = std::unordered_map<Field, FieldMeta *>();
         this->default_player = new Player();
         // first lower half, then upper half
@@ -643,13 +648,16 @@ public:
             delete elem.second;
         }
         delete this->default_player;
+        SDL_DestroyTexture(this->texture);
     }
 
     FieldMeta *get_neighbor(FieldMeta *field, Uint8 direction);
 
     Cluster get_cluster(FieldMeta *field);
 
-    bool render(SDL_Renderer *renderer);
+    void render(Renderer *renderer);
+
+    void load();
 
     Sint16 get_radius() { return radius * layout->size; }
 
@@ -672,6 +680,9 @@ public:
     void handle_event(SDL_Event *event);
 
 private:
+    bool changed;
+    Renderer *renderer;
+    SDL_Texture *texture;
     std::unordered_map<Field, FieldMeta *> fields;
     Layout *layout;
     FieldMeta *marker;
@@ -682,5 +693,6 @@ private:
     Sint16 radius;
 };
 
+bool inside_target(const SDL_Rect *target, const SDL_Point *position);
 
 #endif

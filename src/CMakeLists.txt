@@ -1,2 +1,2 @@
-add_executable(Bob Bob.cpp Bob.hpp Gameplay.cpp Gameplay.hpp Gui.hpp Gui.cpp Events.cpp Exceptions.hpp Pixelmask.h)
+add_executable(Bob Bob.cpp Bob.hpp Gameplay.cpp Gameplay.hpp Gui.hpp Gui.cpp Events.cpp Exceptions.hpp Pixelmask.h Wrapper.hpp Wrapper.cpp)
 target_link_libraries(Bob ${SDL2_LIB} ${SDL2_GFX_LIB} ${SDL2_TTF_LIB} ${Boost_LIBRARIES})

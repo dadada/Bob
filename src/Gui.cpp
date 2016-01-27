@@ -22,20 +22,29 @@ TTF_Font *load_font_from_file(std::string path_to_file, int size)
 bool TextBox::load_text(std::string text)
 {
     const char *displayed_text = text.c_str();
-    SDL_Surface *surface = TTF_RenderUTF8_Blended_Wrapped(this->font, displayed_text, this->color, 100);
-    if (surface == nullptr)
+    SDL_Surface *text_surface = TTF_RenderUTF8_Blended_Wrapped(this->font, displayed_text, this->color, 100);
+    if (text_surface == nullptr)
     {
-        SDL_FreeSurface(surface);
+        SDL_FreeSurface(text_surface);
         throw SDL_TTFException();
     }
-    this->dimensions.w = surface->w;
-    this->dimensions.h = surface->h;
+    this->dimensions.w = text_surface->w;
+    this->dimensions.h = text_surface->h;
+    SDL_Surface *surface = SDL_CreateRGBSurface(0, this->dimensions.w, this->dimensions.h, 32, rmask, gmask, bmask,
+                                                amask);
+    if (surface == nullptr
+        || SDL_FillRect(surface, nullptr, SDL_MapRGB(surface->format, 255, 255, 255)) < 0
+        || SDL_BlitSurface(text_surface, nullptr, surface, nullptr) < 0)
+    {
+        throw SDL_Exception("Failed to create background text_surface!");
+    }
     if (this->texture != nullptr)
     {
         SDL_DestroyTexture(this->texture);
     }
     SDL_SetRenderTarget(this->renderer->get_renderer(), this->texture);
     this->texture = SDL_CreateTextureFromSurface(this->renderer->get_renderer(), surface);
+    SDL_FreeSurface(text_surface);
     SDL_FreeSurface(surface);
     if (this->texture == nullptr)
     {
@@ -44,54 +53,6 @@ bool TextBox::load_text(std::string text)
     }
     SDL_SetRenderTarget(this->renderer->get_renderer(), nullptr); // reset the render target
     return (this->texture != nullptr);
-}
-
-SDL_Point Window::toggle_fullscreen()
-{
-    SDL_DisplayMode dm;
-    SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(this->window), &dm);
-    if (!this->fullscreen)
-    {
-        this->fullscreen = true;
-        SDL_SetWindowSize(this->window, dm.w, dm.h);
-        SDL_SetWindowFullscreen(this->window, SDL_WINDOW_FULLSCREEN);
-    }
-    else
-    {
-        this->fullscreen = false;
-        SDL_SetWindowFullscreen(this->window, 0);
-        SDL_SetWindowSize(this->window, this->initial_dimensions->w, this->initial_dimensions->h);
-        SDL_SetWindowPosition(this->window, this->initial_dimensions->x, this->initial_dimensions->y);
-    }
-    SDL_Point window_size = {0, 0};
-    SDL_GetWindowSize(window, &(window_size.x), &(window_size.y));
-    return window_size;
-}
-
-bool inside_target(const SDL_Rect *target, const SDL_Point *position)
-{
-    return target->x < position->x && target->x + target->w > position->x && target->y < position->y &&
-           target->y + target->h > position->y;
-}
-
-int Window::get_window_id()
-{
-    return SDL_GetWindowID(this->window);
-}
-
-void Renderer::set_draw_color(SDL_Color color)
-{
-    SDL_SetRenderDrawColor(this->renderer, color.r, color.g, color.b, color.a);
-}
-
-void Renderer::clear()
-{
-    SDL_RenderClear(this->renderer);
-}
-
-void Renderer::present()
-{
-    SDL_RenderPresent(this->renderer);
 }
 
 void Container::handle_event(SDL_Event *event)
@@ -112,22 +73,13 @@ void FieldBox::handle_event(const SDL_Event *event)
     }
     else if (event->type == BOB_MARKERUPDATE)
     {
-        if (event->user.code == 0)
-        {
-            if (!Timer::MOUSE_LOCKED)
-            {
-                SDL_Point mouse;
-                SDL_GetMouseState(&mouse.x, &mouse.y);
-                this->update_position(mouse);
-                this->field = static_cast<FieldMeta *>(event->user.data1);
-            }
-            this->visible = true;
-        }
-        else if (!Timer::MOUSE_LOCKED)
-        {
-            this->visible = false;
-        }
+        FieldMeta *field_update = reinterpret_cast<FieldMeta *>(event->user.data1);
+        this->field = field_update;
         this->update();
+        SDL_Point mouse;
+        SDL_GetMouseState(&mouse.x, &mouse.y);
+        this->update_position(mouse);
+        this->visible = true;
     }
 }
 
@@ -153,33 +105,42 @@ void UpgradeButtonBox::set_active(bool state)
         this->color.b = 0xff;
         this->load_text(UPGRADE_NAMES.at(this->upgrade));
     }
+    else
+    {
+        this->color = {0, 0, 0, 0xff};
+        this->load_text(UPGRADE_NAMES.at(this->upgrade));
+    }
+}
+
+void UpgradeBox::update_upgrade_boxes()
+{
+    UpgradeFlags active_upgrades = this->field->get_upgrades();
+    for (int i = 0; i < NUM_UPGRADES; i++)
+    {
+        this->upgrades[i]->set_active(active_upgrades[i]);
+    }
 }
 
 void UpgradeBox::handle_event(const SDL_Event *event)
 {
-    if (event->type == BOB_FIELDUPDATEEVENT)
+    if (this->visible)
     {
-        // mark updates active / inactive
-        this->field = static_cast<FieldMeta *>(event->user.data1);
-        UpgradeFlags updated_upgrades = this->field->get_upgrades();
-        for (auto upgrade : this->upgrades)
+        if (event->type == BOB_FIELDUPDATEEVENT)
         {
-            Upgrade up = upgrade->get_upgrade();
-            bool active = updated_upgrades[up];
-            upgrade->set_active(active);
+            this->update_upgrade_boxes();
         }
-    }
-    else if (this->visible)
-    {
-        if (event->type == SDL_MOUSEBUTTONDOWN)
+        else if (event->type == SDL_MOUSEBUTTONDOWN)
         {
-            this->marked_upgrade->handle_event(event);
             SDL_Point mouse;
             SDL_GetMouseState(&mouse.x, &mouse.y);
             if (!inside_target(&(this->dimensions), &mouse))
             {
                 Timer::MOUSE_LOCKED = false;
                 this->set_visible(false);
+            }
+            else
+            {
+                this->marked_upgrade->handle_event(event);
             }
         }
         else if (event->type == SDL_MOUSEMOTION && this->visible)
@@ -209,16 +170,17 @@ void UpgradeBox::handle_event(const SDL_Event *event)
     }
     else // NOT visible
     {
-        if (event->type == BOB_FIELDSELECTED)
+        if (event->type == BOB_FIELDSELECTEDEVENT)
         {
             FieldMeta *selected = static_cast<FieldMeta *>(event->user.data1);
-            if (selected != nullptr && event->user.code == 0x0)
+            if (selected != nullptr && event->user.code == 0x0 && !Timer::MOUSE_LOCKED)
             {
                 Timer::MOUSE_LOCKED = true;
                 SDL_Point mouse;
                 SDL_GetMouseState(&mouse.x, &mouse.y);
                 this->update_position(mouse);
                 this->field = selected;
+                this->update_upgrade_boxes();
                 this->set_visible(true);
             }
         }
@@ -263,19 +225,7 @@ void Box::render(Renderer *ext_renderer)
 {
     if (this->visible && this->texture != nullptr)
     {
-        SDL_Color bg = {0xff, 0xff, 0xff, 0xff};
-        renderer->set_draw_color(bg);
-        if (SDL_SetRenderDrawBlendMode(ext_renderer->get_renderer(), SDL_BLENDMODE_NONE) < 0
-            || SDL_RenderFillRect(ext_renderer->get_renderer(), &(this->dimensions)) < 0)
-        {
-            throw SDL_Exception("Failed to draw rectangle background!");
-        }
-        renderer->set_draw_color(this->color);
-        if (SDL_SetTextureBlendMode(this->texture, SDL_BLENDMODE_BLEND) < 0
-            || SDL_RenderCopy(ext_renderer->get_renderer(), this->texture, nullptr, &(this->dimensions)) < 0)
-        {
-            throw SDL_RendererException();
-        }
+        ext_renderer->copy(this->texture, nullptr, &(this->dimensions));
     }
 }
 
@@ -325,5 +275,5 @@ void UpgradeBox::set_visible(bool status)
 void FieldBox::update_position(SDL_Point point)
 {
     this->dimensions.x = point.x;
-    this->dimensions.y = point.y - dimensions.h - 6;
+    this->dimensions.y = point.y - this->dimensions.h - 6;
 }

@@ -23,7 +23,6 @@ public:
         this->layout = new Layout(pointy_orientation, 20,
                                   {window_dimensions->w / 2, window_dimensions->h / 2},
                                   {0, 0, window_dimensions->w, window_dimensions->h});
-        this->grid = new HexagonGrid(size, this->layout);
         for (int i = 0; i < 4; i++)
         {
             this->move[i] = false;
@@ -36,6 +35,7 @@ public:
             this->window = new Window(TITLE, window_dimensions, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
             this->renderer = new Renderer(this->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
                                                             | SDL_RENDERER_TARGETTEXTURE);
+            this->grid = new HexagonGrid(size, this->layout, this->renderer);
             FieldMeta *center = this->grid->get_field({0, 0, 0});
             this->field_box = new FieldBox(this->renderer, {0, 0, 1, 1}, fg, this->font, center);
             this->upgrade_box = new UpgradeBox(this->renderer, {0, 0, 1, 1}, fg, this->font, center);
@@ -70,6 +70,7 @@ public:
     int game_loop();
 
 private:
+
     UpgradeBox *upgrade_box;
     FieldBox *field_box;
     TextBox *test_box;

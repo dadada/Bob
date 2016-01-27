@@ -7,11 +7,12 @@
 
 #ifndef _EVENT_TYPES
 #define _EVENT_TYPES
-extern const Uint32 BOB_NEXTTURNEVENT;
+extern const Uint32 BOB_NEXTROUNDEVENT;
 extern const Uint32 BOB_MARKERUPDATE;
 extern const Uint32 BOB_FIELDUPDATEEVENT;
-extern const Uint32 BOB_FIELDSELECTED;
+extern const Uint32 BOB_FIELDSELECTEDEVENT;
 extern const Uint32 BOB_FIELDUPGRADEVENT;
+extern const Uint32 BOB_NEXTTURNEVENT;
 #endif
 
 Uint32 register_events(Uint32 n);
@@ -42,5 +43,7 @@ struct FieldUpdate
     Sint16 y;
     Sint16 z;
 };
+
+void trigger_event(Uint32 type, Sint32 code, void *data1, void *data2);
 
 #endif
