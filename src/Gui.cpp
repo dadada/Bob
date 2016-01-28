@@ -23,19 +23,25 @@ bool TextBox::load_text(std::string text)
 {
     this->renderer->set_draw_color({0, 0, 0, 0xff});
     const char *displayed_text = text.c_str();
-    SDL_Surface *text_surface = TTF_RenderUTF8_Blended_Wrapped(this->font, displayed_text, this->color, 100);
+    SDL_Surface *text_surface = TTF_RenderUTF8_Blended_Wrapped(this->font, displayed_text, this->color,
+                                                               this->dimensions.w);
     if (text_surface == nullptr)
     {
         SDL_FreeSurface(text_surface);
         throw SDL_TTFException();
     }
-    this->dimensions.w = text_surface->w;
-    this->dimensions.h = text_surface->h;
+    //this->dimensions.w = text_surface->w;
+    //this->dimensions.h = text_surface->h;
     SDL_Surface *surface = SDL_CreateRGBSurface(0, this->dimensions.w, this->dimensions.h, 32, rmask, gmask, bmask,
                                                 amask);
-    if (surface == nullptr
-        || SDL_FillRect(surface, nullptr, SDL_MapRGB(surface->format, 255, 255, 255)) < 0
-        || SDL_BlitSurface(text_surface, nullptr, surface, nullptr) < 0)
+    if (surface == nullptr || SDL_LockSurface(surface) < 0 ||
+        SDL_FillRect(surface, nullptr, SDL_MapRGB(surface->format, 255, 255, 255)) < 0)
+    {
+        throw SDL_Exception("Failed to fill rect behind text!");
+    }
+    //SDL_Rect text_rect = {this->dimensions.x, this->dimensions.y, surface->w, surface->h};
+    SDL_UnlockSurface(surface);
+    if (SDL_BlitSurface(text_surface, nullptr, surface, nullptr) < 0)
     {
         throw SDL_Exception("Failed to create background text_surface!");
     }
@@ -328,23 +334,23 @@ void TextInputBox::handle_event(const SDL_Event *event)
     {
         if (event->key.keysym.sym == SDLK_RETURN)
         {
-            this->input = "";
+            this->input.str("");
             changed = true;
         }
-        else if (event->key.keysym.sym == SDLK_BACKSPACE && this->input.length() > 0)
+        else if (event->key.keysym.sym == SDLK_BACKSPACE)
         {
-            input.pop_back();
+            input << '\b';
+            input << " ";
             changed = true;
         }
         else if (event->key.keysym.sym == SDLK_c && SDL_GetModState() & KMOD_CTRL)
         {
-            SDL_SetClipboardText(input.c_str());
-            changed = true;
+            SDL_SetClipboardText(input.str().c_str());
         }
         else if (event->key.keysym.sym == SDLK_v && SDL_GetModState() & KMOD_CTRL)
         {
-            input = SDL_GetClipboardText();
-
+            input << SDL_GetClipboardText();
+            changed = true;
         }
     }
     else if (event->type == SDL_TEXTINPUT)
@@ -352,7 +358,7 @@ void TextInputBox::handle_event(const SDL_Event *event)
         if (!((event->text.text[0] == 'c' || event->text.text[0] == 'C')
               && (event->text.text[0] == 'v' || event->text.text[0] == 'V') && SDL_GetModState() & KMOD_CTRL))
         {
-            input += event->text.text;
+            input << event->text.text;
             changed = true;
         }
     }
@@ -362,9 +368,26 @@ void TextInputBox::handle_event(const SDL_Event *event)
     }
     if (changed)
     {
-        std::string foo = input; // because SDL_ttf will complain if not
-        foo += " ";
-        this->load_text(foo);
+        std::string text;
+        text = output.str();
+        text += input.str();
+        if (text.empty())
+            text += " ";
+        this->load_text(text);
+    }
+}
+
+void TextInputBox::prompt(std::string message)
+{
+    this->output << this->input.str() << "\n" << message << "\n# ";
+    this->lines += 2;
+    this->dimensions.h = (this->font_height * lines);
+    this->load_text(output.str());
+    if (this->dimensions.h > 500)
+    {
+        this->lines = 2;
+        output.str("");
+        this->prompt(message);
     }
 }
 
@@ -372,16 +395,15 @@ void TextInputBox::render(Renderer *ext_renderer)
 {
     if (this->texture != nullptr && this->visible)
     {
-        ext_renderer->set_draw_color({0xff, 0xff, 0xff, 0x00});
-        SDL_RenderFillRect(ext_renderer->get_renderer(), &(bg_dimensions));
         ext_renderer->copy(this->texture, nullptr, &(this->dimensions));
     }
 }
 
 void TextInputBox::update_dimensions(SDL_Rect rect)
 {
-    this->bg_dimensions = rect;
-    this->dimensions = bg_dimensions;
+    this->dimensions.x = rect.x;
+    this->dimensions.y = rect.y;
+    this->dimensions.w = rect.w;
 }
 
 bool TextInputBox::get_active()

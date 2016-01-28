@@ -51,7 +51,10 @@ class TextBox : public Box
 {
 public:
     TextBox(Renderer *renderer, SDL_Rect dimensions, SDL_Color color, TTF_Font *font_)
-            : Box(renderer, dimensions, color), font(font_) { }
+            : Box(renderer, dimensions, color), font(font_)
+    {
+        this->font_height = TTF_FontHeight(font);
+    }
 
     bool load_text(std::string text);
 
@@ -59,16 +62,18 @@ public:
 
 protected:
     TTF_Font *font;
+    int font_height;
 };
 
 class TextInputBox : TextBox
 {
 public:
     TextInputBox(Renderer *renderer_, SDL_Rect dimensions_, SDL_Color color_, TTF_Font *font_)
-            : TextBox(renderer_, dimensions_, color_, font_), bg_dimensions(dimensions_), input("")
+            : TextBox(renderer_, dimensions_, color_, font_), input(""), lines(1)
     {
         this->visible = false;
-        this->load_text(" ");
+        this->output << "# ";
+        this->load_text(output.str());
     }
 
     void start();
@@ -83,11 +88,14 @@ public:
 
     void update_dimensions(SDL_Rect rect);
 
-    std::string get_input() { return this->input; }
+    std::string get_input() { return this->input.str(); }
+
+    void prompt(std::string message);
 
 private:
-    SDL_Rect bg_dimensions;
-    std::string input;
+    Uint16 lines;
+    std::ostringstream output; // what is loaded to the texture - currnt input
+    std::stringstream input; // editable command prompt
 };
 
 class FieldBox : public TextBox
@@ -150,7 +158,6 @@ private:
     std::vector<Player *>::iterator current_player;
 };
 
-
 class UpgradeBox : public Box
 {
 public:
@@ -160,13 +167,14 @@ public:
         int y = dimensions.y;
         for (Upgrade upgrade : UPGRADES)
         {
-            UpgradeButtonBox *box = new UpgradeButtonBox(renderer, {0, y, 1, 1}, color, font, this, upgrade);
+            UpgradeButtonBox *box = new UpgradeButtonBox(renderer, {0, y, dimensions.w, 20}, color, font, this,
+                                                         upgrade);
             box->load_text(UPGRADE_NAMES.at(upgrade));
             y += 20;
             this->marked_upgrade = box;
             this->upgrades.push_back(box);
         }
-        this->upgrade_info = new TextBox(renderer, {0, 0, 1, 1}, color, font);
+        this->upgrade_info = new TextBox(renderer, {0, 0, dimensions.w, 200}, color, font);
     }
 
     ~UpgradeBox()

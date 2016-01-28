@@ -20,6 +20,7 @@ class Game
 public:
     Game(SDL_Rect *window_dimensions, Sint16 size)
     {
+        this->started = false;
         this->layout = new Layout(pointy_orientation, 20,
                                   {window_dimensions->w / 2, window_dimensions->h / 2},
                                   {0, 0, window_dimensions->w, window_dimensions->h});
@@ -41,15 +42,14 @@ public:
                                                             | SDL_RENDERER_TARGETTEXTURE);
             this->grid = new HexagonGrid(size, this->layout, this->renderer);
             FieldMeta *center = this->grid->get_field({0, 0, 0});
-            this->field_box = new FieldBox(this->renderer, {0, 0, 1, 1}, fg, this->font, center);
-            this->upgrade_box = new UpgradeBox(this->renderer, {0, 0, 1, 1}, fg, this->font, center);
-            this->test_box = new TextBox(this->renderer, {0, 0, 1, 1}, fg, this->font);
-            this->test_box->set_visible(true);
+            this->field_box = new FieldBox(this->renderer, {0, 0, 100, 100}, fg, this->font, center);
+            this->upgrade_box = new UpgradeBox(this->renderer, {0, 0, 100, 20}, fg, this->font, center);
+            this->test_box = new TextBox(this->renderer, {0, 0, 100, 20}, fg, this->font);
             this->next_turn_button = new NextTurnButtonBox(this->renderer,
                                                            {window_size.x - 100, window_size.y - 100, 1, 1}, fg,
                                                            this->font, &(this->players));
-            this->text_input_box = new TextInputBox(this->renderer, {0, window_size.y - 12, window_size.x, 12}, fg,
-                                                    this->font);
+            int font_height = TTF_FontHeight(this->font);
+            this->text_input_box = new TextInputBox(this->renderer, {0, 0, window_size.x, font_height}, fg, this->font);
             this->text_input_box->stop();
         }
         catch (const SDL_Exception &sdl_except)
@@ -79,6 +79,8 @@ public:
         delete this->layout;
     }
 
+    void command(std::string command);
+
     void render();
 
     void handle_event(SDL_Event *event);
@@ -86,6 +88,7 @@ public:
     int game_loop();
 
 private:
+    bool started;
     TextInputBox *text_input_box;
     std::vector<Player *> players;
     NextTurnButtonBox *next_turn_button;

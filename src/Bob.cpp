@@ -1,5 +1,6 @@
 #include "Bob.hpp"
 
+
 void Game::handle_event(SDL_Event *event)
 {
     static SDL_Point window_size;
@@ -16,7 +17,7 @@ void Game::handle_event(SDL_Event *event)
                 {
                     case SDL_WINDOWEVENT_SIZE_CHANGED:
                         this->grid->update_dimensions({event->window.data1, event->window.data2});
-                        this->text_input_box->update_dimensions({0, event->window.data2 - 12, event->window.data1,
+                        this->text_input_box->update_dimensions({0, 0, event->window.data1,
                                                                  event->window.data2});
                         break;
                     default:
@@ -71,7 +72,7 @@ void Game::handle_event(SDL_Event *event)
                     {
                         window_size = this->window->toggle_fullscreen();
                         this->grid->update_dimensions(window_size);
-                        this->text_input_box->update_dimensions({0, window_size.y - window_size.x, 12});
+                        this->text_input_box->update_dimensions({0, window_size.y - 20, 0, 20});
                         this->next_turn_button->update_position({window_size.x - 100, window_size.y - 100});
                         this->upgrade_box->set_visible(false);
                     }
@@ -91,9 +92,9 @@ void Game::handle_event(SDL_Event *event)
                     break;
                 case SDLK_RETURN:
                     input = this->text_input_box->get_input();
-                    if (input == "/quit")
+                    if (this->text_input_box->get_active())
                     {
-                        this->quit = true;
+                        this->command(input);
                     }
                     break;
                 default:
@@ -147,6 +148,47 @@ void Game::handle_event(SDL_Event *event)
             }
             break;
     }
+}
+
+void Game::command(std::string input)
+{
+    std::ostringstream prompt;
+    if (input == "quit")
+    {
+        prompt << "Quitting the game";
+        this->quit = true;
+    }
+    else if (input == "test")
+    {
+        prompt << "This is a test!";
+    }
+    else if (input == "surrender")
+    {
+        //Player::current_player->surrender();
+    }
+    else if (!this->started)
+    {
+        if (input.substr(0, 11) == "add player")
+        {
+            Player *added = new Player(input.substr(11, std::string::npos));
+            /*if (!this->grid->place(added))
+            {
+                this->text_input_box->output << "Failed to add player:" << added->get_name();
+                delete added;
+            }
+            else
+            {
+                this->players.push_back(added);
+            }
+             */
+        }
+        else if (input == "start")
+        {
+            //this->start_game();
+            prompt << "Started the game.";
+        }
+    }
+    this->text_input_box->prompt(prompt.str());
 }
 
 int Game::game_loop()
@@ -233,7 +275,7 @@ int main(int, char **)
     SDL_Rect bounds;
     SDL_GetDisplayBounds(0, &bounds);
     SDL_Rect window_dimensions = {SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 600, 600};
-    Game *game = new Game(&window_dimensions, 20);
+    Game *game = new Game(&window_dimensions, 10);
     int exit_status = 1;
     exit_status = game->game_loop();
     delete game;
