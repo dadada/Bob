@@ -45,7 +45,6 @@ void Game::handle_event(SDL_Event *event)
                 this->grid->handle_event(event);
                 this->field_box->handle_event(event);
                 this->upgrade_box->handle_event(event);
-                this->next_turn_button->handle_event(event);
             }
             break;
         case SDL_KEYDOWN:
@@ -72,8 +71,7 @@ void Game::handle_event(SDL_Event *event)
                     {
                         window_size = this->window->toggle_fullscreen();
                         this->grid->update_dimensions(window_size);
-                        this->text_input_box->update_dimensions({0, window_size.y - 20, 0, 20});
-                        this->next_turn_button->update_position({window_size.x - 100, window_size.y - 100});
+                        this->text_input_box->update_dimensions({0, 0, window_size.x, 0});
                         this->upgrade_box->set_visible(false);
                     }
                     break;
@@ -162,33 +160,54 @@ void Game::command(std::string input)
     {
         prompt << "This is a test!";
     }
+    else if (input == "next" && this->started)
+    {
+        Player *last_player = Player::current_player;
+        this->turn = this->turn + 1;
+        if (this->turn == players.size())
+        {
+            this->turn = 0;
+            trigger_event(BOB_NEXTROUNDEVENT, 0, (void *) last_player, (void *) Player::current_player);
+        }
+        else
+        {
+            trigger_event(BOB_NEXTTURNEVENT, 0, (void *) last_player, (void *) Player::current_player);
+        }
+        Player::current_player = players[turn];
+        prompt << "Next player is: " << (Player::current_player)->get_name();
+    }
     else if (input == "surrender")
     {
         //Player::current_player->surrender();
     }
-    else if (!this->started)
+    else if (!this->started && input.substr(0, 10) == "add player")
     {
-        if (input.substr(0, 11) == "add player")
+        Player *added = new Player(input.substr(11, std::string::npos));
+        if (!this->grid->place(added))
         {
-            Player *added = new Player(input.substr(11, std::string::npos));
-            /*if (!this->grid->place(added))
-            {
-                this->text_input_box->output << "Failed to add player:" << added->get_name();
-                delete added;
-            }
-            else
-            {
-                this->players.push_back(added);
-            }
-             */
+            prompt << "Failed to add player:" << added->get_name();
+            delete added;
         }
-        else if (input == "start")
+        else
         {
-            //this->start_game();
-            prompt << "Started the game.";
+            this->players.push_back(added);
+            prompt << "Added player " << added->get_name();
         }
     }
+    else if (input == "start" && !this->started)
+    {
+        this->start();
+        this->started = true;
+        prompt << "Started the game.";
+    }
     this->text_input_box->prompt(prompt.str());
+}
+
+void Game::start()
+{
+    std::random_shuffle(players.begin(), players.end());
+    this->turn = 0;
+    Player::current_player = players[0];
 }
 
 int Game::game_loop()
@@ -234,7 +253,6 @@ void Game::render()
         this->test_box->render(this->renderer);
         this->field_box->render(this->renderer);
         this->upgrade_box->render(this->renderer);
-        this->next_turn_button->render(this->renderer);
         this->text_input_box->render(this->renderer);
         this->renderer->present();
     }

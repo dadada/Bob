@@ -598,3 +598,8 @@ bool inside_target(const SDL_Rect *target, const SDL_Point *position)
     return target->x < position->x && target->x + target->w > position->x && target->y < position->y &&
            target->y + target->h > position->y;
 }
+
+bool HexagonGrid::place(Player *player)
+{
+    return true;
+}

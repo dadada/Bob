@@ -58,6 +58,8 @@ public:
         }
         this->frame_timer = new Timer();
         this->move_timer = new Timer();
+        this->turn = 0;
+        Player::current_player = this->players[turn];
     }
 
     ~Game()
@@ -79,6 +81,8 @@ public:
         delete this->layout;
     }
 
+    void start();
+
     void command(std::string command);
 
     void render();
@@ -89,6 +93,7 @@ public:
 
 private:
     bool started;
+    Uint64 turn;
     TextInputBox *text_input_box;
     std::vector<Player *> players;
     NextTurnButtonBox *next_turn_button;

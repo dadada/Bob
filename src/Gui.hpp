@@ -51,7 +51,7 @@ class TextBox : public Box
 {
 public:
     TextBox(Renderer *renderer, SDL_Rect dimensions, SDL_Color color, TTF_Font *font_)
-            : Box(renderer, dimensions, color), font(font_)
+            : Box(renderer, dimensions, color), font(font_), lines(1)
     {
         this->font_height = TTF_FontHeight(font);
     }
@@ -62,6 +62,7 @@ public:
 
 protected:
     TTF_Font *font;
+    Uint16 lines;
     int font_height;
 };
 
@@ -69,10 +70,10 @@ class TextInputBox : TextBox
 {
 public:
     TextInputBox(Renderer *renderer_, SDL_Rect dimensions_, SDL_Color color_, TTF_Font *font_)
-            : TextBox(renderer_, dimensions_, color_, font_), input(""), lines(1)
+            : TextBox(renderer_, dimensions_, color_, font_), input("")
     {
         this->visible = false;
-        this->output << "# ";
+        this->output << Player::current_player->get_name() << "# ";
         this->load_text(output.str());
     }
 
@@ -93,7 +94,6 @@ public:
     void prompt(std::string message);
 
 private:
-    Uint16 lines;
     std::ostringstream output; // what is loaded to the texture - currnt input
     std::stringstream input; // editable command prompt
 };

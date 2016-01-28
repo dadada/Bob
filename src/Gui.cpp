@@ -25,21 +25,19 @@ bool TextBox::load_text(std::string text)
     const char *displayed_text = text.c_str();
     SDL_Surface *text_surface = TTF_RenderUTF8_Blended_Wrapped(this->font, displayed_text, this->color,
                                                                this->dimensions.w);
+    this->dimensions.h = text_surface->h;
     if (text_surface == nullptr)
     {
         SDL_FreeSurface(text_surface);
         throw SDL_TTFException();
     }
-    //this->dimensions.w = text_surface->w;
-    //this->dimensions.h = text_surface->h;
-    SDL_Surface *surface = SDL_CreateRGBSurface(0, this->dimensions.w, this->dimensions.h, 32, rmask, gmask, bmask,
+    SDL_Surface *surface = SDL_CreateRGBSurface(0, this->dimensions.w, text_surface->h, 32, rmask, gmask, bmask,
                                                 amask);
     if (surface == nullptr || SDL_LockSurface(surface) < 0 ||
         SDL_FillRect(surface, nullptr, SDL_MapRGB(surface->format, 255, 255, 255)) < 0)
     {
         throw SDL_Exception("Failed to fill rect behind text!");
     }
-    //SDL_Rect text_rect = {this->dimensions.x, this->dimensions.y, surface->w, surface->h};
     SDL_UnlockSurface(surface);
     if (SDL_BlitSurface(text_surface, nullptr, surface, nullptr) < 0)
     {
@@ -220,7 +218,7 @@ void UpgradeBox::render(Renderer *ext_renderer)
     }
     SDL_Rect dim = this->upgrades[0]->get_dimensions();
     this->dimensions.w = dim.w;
-    this->dimensions.h = (dim.h + 4) * (int) this->upgrades.size();
+    this->dimensions.h = dim.h * (int) this->upgrades.size();
 }
 
 void Container::render(Renderer *renderer)
@@ -267,9 +265,9 @@ void UpgradeBox::update_position(SDL_Point pos)
     for (auto box : this->upgrades)
     {
         box->update_position(d_pos);
-        d_pos.y += 20;
+        d_pos.y += box->get_dimensions().h;
     }
-    this->upgrade_info->update_position({pos.x + 110, pos.y});
+    this->upgrade_info->update_position({pos.x + this->upgrades[0]->get_dimensions().w, pos.y});
 }
 
 void UpgradeBox::set_visible(bool status)
@@ -339,8 +337,11 @@ void TextInputBox::handle_event(const SDL_Event *event)
         }
         else if (event->key.keysym.sym == SDLK_BACKSPACE)
         {
-            input << '\b';
-            input << " ";
+            std::string foo = input.str();
+            if (!foo.empty())
+                foo.pop_back();
+            input.str(foo);
+            input.seekp(foo.length());
             changed = true;
         }
         else if (event->key.keysym.sym == SDLK_c && SDL_GetModState() & KMOD_CTRL)
@@ -379,11 +380,10 @@ void TextInputBox::handle_event(const SDL_Event *event)
 
 void TextInputBox::prompt(std::string message)
 {
-    this->output << this->input.str() << "\n" << message << "\n# ";
+    this->output << this->input.str() << "\n" << message << "\n" << Player::current_player->get_name() << "# ";
     this->lines += 2;
-    this->dimensions.h = (this->font_height * lines);
     this->load_text(output.str());
-    if (this->dimensions.h > 500)
+    if (lines > 20)
     {
         this->lines = 2;
         output.str("");
@@ -404,6 +404,7 @@ void TextInputBox::update_dimensions(SDL_Rect rect)
     this->dimensions.x = rect.x;
     this->dimensions.y = rect.y;
     this->dimensions.w = rect.w;
+    this->load_text(output.str());
 }
 
 bool TextInputBox::get_active()

@@ -605,6 +605,7 @@ public:
     bool get_fighting() { return this->fighting; }
 
     void set_fighting(bool state) { this->fighting = state; }
+
 private:
     bool fighting;
     const Field field;
@@ -684,6 +685,8 @@ public:
     FieldMeta *get_field(Field field);
 
     void handle_event(SDL_Event *event);
+
+    bool place(Player *player);
 
 private:
     bool changed;
