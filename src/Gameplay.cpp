@@ -257,11 +257,15 @@ Resource HexagonGrid::consume_resources_of_cluster(Cluster *cluster, Resource co
 
 bool Player::fight(FieldMeta *field)
 {
-    if (*this == *(field->get_owner())) // friendly fire
+    bool is_neighbor = false; // player has a field around here
+    // friendly fire or owned by default player
+    if (*this == *(field->get_owner()) || field->get_owner()->get_id() == boost::uuids::nil_uuid())
     {
         return false;
     }
-
+    Cluster defenders_cluster = field->get_grid()->get_cluster(field);
+    Resource defenders_cluster_res = field->get_grid()->get_resources_of_cluster(&defenders_cluster);
+    Cluster attackers_cluster;
     // defending player's defense against attacking player's offense
     int power_level = field->get_defense(); // it's over 9000
     for (Uint8 i = 0; i < 6; i++)
@@ -272,19 +276,31 @@ bool Player::fight(FieldMeta *field)
             continue;
         }
         if (*(neighbor->get_owner()) == *this) // comparison by UUID
+        {
             power_level -= neighbor->get_offense();
+            is_neighbor = true;
+        }
         else if (*(neighbor->get_owner()) == *(field->get_owner()))
+        {
+            Cluster temp_attackers_cluster = neighbor->get_grid()->get_cluster(neighbor);
+            attackers_cluster.insert(temp_attackers_cluster.begin(), temp_attackers_cluster.end());
             power_level += neighbor->get_defense();
-        // else ignore, field / player not part of the fight (e.g. default player)
+        }
+        // else: ignore, field / player not part of the fight (e.g. default player)
     }
-    if (power_level < 0) // attacking player has won
+    Resource costs = {(Uint32) std::abs(power_level), (Uint32) std::abs(power_level), (Uint32) std::abs(power_level)};
+    if (power_level < 0 && is_neighbor) // attacking player has won
     {
+        field->get_grid()->consume_resources_of_cluster(&attackers_cluster, costs);
+        field->get_grid()->consume_resources_of_cluster(&defenders_cluster, costs);
         field->set_owner(this);
-        this->fought = true;
         return true;
     }
-    this->fought = true;
-    return false;
+    else // lost
+    {
+        field->get_grid()->consume_resources_of_cluster(&attackers_cluster, costs);
+        return false;
+    }
 }
 
 void FieldMeta::handle_event(const SDL_Event *event)
@@ -429,13 +445,13 @@ void HexagonGrid::handle_event(SDL_Event *event)
     switch (event->type)
     {
         case SDL_MOUSEWHEEL:
-            if (old_size + scroll < 20)
+            if (old_size + scroll < 10)
             {
-                this->layout->size = 20;
+                this->layout->size = 10;
             }
-            else if (old_size + scroll > 100)
+            else if (old_size + scroll > 1000)
             {
-                this->layout->size = 100;
+                this->layout->size = 1000;
             }
             else
             {
@@ -476,14 +492,7 @@ void HexagonGrid::handle_event(SDL_Event *event)
                 case SDL_BUTTON_LEFT:
                     if (this->selecting)
                     {
-                        if (this->place(this->selecting_player, this->marker))
-                        {
-                            trigger_event(BOB_PLAYERADDED, 0, (void *) this->selecting_player, nullptr);
-                        }
-                        else
-                        {
-                            trigger_event(BOB_PLAYERADDED, 1, (void *) this->selecting_player, nullptr);
-                        }
+                        trigger_event(BOB_FIELDSELECTEDEVENT, 0, (void *) this->marker, nullptr);
                         this->selecting = false;
                     }
                     else
@@ -519,6 +528,34 @@ void HexagonGrid::handle_event(SDL_Event *event)
                 {
                     field.second->regenerate_resources();
                 }
+            }
+            else if (event->type == BOB_NEXTTURNEVENT)
+            {
+                std::default_random_engine generator;
+                std::normal_distribution<double> distribution(0.0, 1.0);
+                std::unordered_set<FieldMeta *> aquired;
+                for (auto pair : this->fields)
+                {
+                    FieldMeta *field = pair.second;
+                    if (*(field->get_owner()) == *(Player::current_player))
+                    {
+                        for (Uint8 i = 0; i < 6; i++)
+                        {
+
+                            FieldMeta *neighbor = field->get_neighbor(i);
+                            if (neighbor != nullptr && neighbor->get_owner()->get_id() == boost::uuids::nil_uuid()
+                                && (neighbor->get_reproduction() > distribution(generator)))
+                            {
+                                aquired.insert(neighbor);
+                            }
+                        }
+                    }
+                }
+                for (auto foo : aquired)
+                {
+                    foo->set_owner(Player::current_player);
+                }
+                this->changed = true;
             }
             break;
     }
@@ -652,6 +689,6 @@ void Player::handle_event(SDL_Event *event)
 {
     if (event->type == BOB_NEXTROUNDEVENT)
     {
-        this->fought = false;
+        // nothing atm
     }
 }

@@ -342,9 +342,9 @@ inline std::ostream &operator<<(std::ostream &os, const Field &rhs)
 
 struct Resource
 {
-    Uint8 circle;
-    Uint8 triangle;
-    Uint8 square;
+    Uint32 circle;
+    Uint32 triangle;
+    Uint32 square;
 
     Resource &operator+=(const Resource &rhs)
     {
@@ -511,7 +511,7 @@ public:
     Player()
             : name("Default Player"), uuid(boost::uuids::nil_uuid()) { }
     Player(std::string name_)
-            : name(name_), uuid(boost::uuids::basic_random_generator<boost::mt19937>()()), fought(false)
+            : name(name_), uuid(boost::uuids::basic_random_generator<boost::mt19937>()())
     {
         // use the last 24 bits of the tag for the color
         boost::uuids::uuid id = this->uuid;
@@ -551,7 +551,6 @@ private:
     boost::uuids::uuid uuid;
     SDL_Color color;
     std::string name;
-    bool fought;
 };
 
 class Grid;
@@ -564,6 +563,9 @@ public:
     FieldMeta(HexagonGrid *grid_, Field field_, Player *owner_)
             : grid(grid_), field(field_), owner(owner_), changed(true)
     {
+        std::default_random_engine generator;
+        std::normal_distribution<double> distribution(0.0, 1.0);
+        this->reproduction = distribution(generator);
         this->fighting = false;
         this->upgrades = 0;
         static std::random_device rd;
@@ -613,7 +615,10 @@ public:
 
     void set_fighting(bool state) { this->fighting = state; }
 
+    double get_reproduction() { return this->reproduction; }
+
 private:
+    double reproduction;
     bool fighting;
     bool changed;
     const Field field;
@@ -697,16 +702,11 @@ public:
 
     bool place(Player *player, FieldMeta *center);
 
-    void set_selecting(bool state, Player *player)
-    {
-        this->selecting = state;
-        this->selecting_player = player;
-    }
+    void set_selecting(bool state) { this->selecting = state; }
 
 private:
     bool changed;
     bool selecting;
-    Player *selecting_player;
     FieldMeta *first_attack;
     Renderer *renderer;
     SDL_Texture *texture;
@@ -715,9 +715,9 @@ private:
     FieldMeta *marker;
     bool panning;
     Player *default_player;
+    Sint16 radius;
 
     bool on_rectangle(SDL_Rect *rect);
-    Sint16 radius;
 };
 
 bool inside_target(const SDL_Rect *target, const SDL_Point *position);

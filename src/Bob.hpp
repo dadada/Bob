@@ -20,6 +20,7 @@ class Game
 public:
     Game(SDL_Rect *window_dimensions, Sint16 size)
     {
+        this->adding = nullptr;
         this->started = false;
         this->layout = new Layout(pointy_orientation, 20,
                                   {window_dimensions->w / 2, window_dimensions->h / 2},
@@ -35,15 +36,15 @@ public:
         this->players.push_back(default_player);
         try
         {
-            this->font = load_font_from_file("/usr/share/fonts/dejavu/DejaVuSans.ttf", 12);
+            this->font = load_font_from_file("/usr/share/fonts/dejavu/DejaVuSans.ttf", 20);
             this->window = new Window(TITLE, window_dimensions, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
             SDL_Point window_size = this->window->get_size();
             this->renderer = new Renderer(this->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
                                                             | SDL_RENDERER_TARGETTEXTURE);
             this->grid = new HexagonGrid(size, this->layout, this->renderer);
             FieldMeta *center = this->grid->get_field({0, 0, 0});
-            this->field_box = new FieldBox(this->renderer, {0, 0, 100, 100}, fg, this->font, center);
-            this->upgrade_box = new UpgradeBox(this->renderer, {0, 0, 100, 20}, fg, this->font, center);
+            this->field_box = new FieldBox(this->renderer, {0, 0, 200, 100}, fg, this->font, center);
+            this->upgrade_box = new UpgradeBox(this->renderer, {0, 0, 200, 20}, fg, this->font, center);
             this->next_turn_button = new NextTurnButtonBox(this->renderer,
                                                            {window_size.x - 100, window_size.y - 100, 1, 1}, fg,
                                                            this->font, &(this->players));
@@ -77,6 +78,10 @@ public:
         delete this->renderer;
         delete this->window;
         delete this->layout;
+        if (this->adding != nullptr)
+        {
+            delete this->adding;
+        }
     }
 
     void start();
@@ -91,6 +96,7 @@ public:
 
 private:
     bool started;
+    Player *adding;
     Uint64 turn;
     TextInputBox *text_input_box;
     std::vector<Player *> players;

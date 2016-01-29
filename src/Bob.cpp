@@ -152,7 +152,7 @@ void Game::handle_event(SDL_Event *event)
                 }
             }
             if (event->type == BOB_NEXTROUNDEVENT || event->type == BOB_FIELDUPDATEEVENT
-                || event->type == BOB_FIELDUPGRADEVENT)
+                || event->type == BOB_FIELDUPGRADEVENT || event->type == BOB_NEXTTURNEVENT)
             {
                 this->grid->handle_event(event);
                 this->field_box->handle_event(event);
@@ -162,18 +162,22 @@ void Game::handle_event(SDL_Event *event)
                     p->handle_event(event);
                 }
             }
-            else if (event->type == BOB_PLAYERADDED && !this->started)
+            else if (event->type == BOB_FIELDSELECTEDEVENT && !this->started)
             {
-                Player *added = (Player *) event->user.data1;
-                if (event->user.code == 0)
+                FieldMeta *field = (FieldMeta *) event->user.data1;
+                if (event->user.code == 0 && this->adding != nullptr)
                 {
-                    this->players.push_back(added);
-                    prompt << "Added Player: " << added->get_name();
-                }
-                else
-                {
-                    prompt << "Failed to add Player: " << added->get_name();
-                    delete added;
+                    if (this->grid->place(this->adding, field))
+                    {
+                        this->players.push_back(this->adding);
+                        prompt << "Added Player: " << this->adding->get_name();
+                        this->adding = nullptr;
+                    }
+                    else
+                    {
+                        prompt << "Failed to add Player: " << this->adding->get_name();
+                        delete this->adding;
+                    }
                 }
                 this->text_input_box->prompt(prompt.str());
             }
@@ -206,6 +210,7 @@ void Game::command(std::string input)
             Player::current_player = players[turn];
             if (this->turn == 0)
             {
+                trigger_event(BOB_NEXTTURNEVENT, 0, (void *) last_player, (void *) Player::current_player);
                 trigger_event(BOB_NEXTROUNDEVENT, 0, (void *) last_player, (void *) Player::current_player);
             }
             else
@@ -227,9 +232,15 @@ void Game::command(std::string input)
     {
         if (!this->started)
         {
-            Player *added = new Player(input.substr(11, std::string::npos));
-            this->grid->set_selecting(true, added);
-            prompt << "Select a place, please!";
+            if (this->adding != nullptr)
+            {
+                this->grid->set_selecting(false);
+                prompt << "Failed to add player " << this->adding->get_name() << "!df\n";
+                delete this->adding;
+            }
+            this->grid->set_selecting(true);
+            this->adding = new Player(input.substr(11, std::string::npos));
+            prompt << "Select a place for " << this->adding->get_name() << ", please!";
             this->text_input_box->stop();
         }
         else
