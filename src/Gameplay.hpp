@@ -496,9 +496,9 @@ const std::unordered_map<Upgrade, std::string> UPGRADE_TEXTS(
                 {Regeneration_1, "Resources yield 2x their base resources per turn."},
                 {Regeneration_2, "Resources yield 4x their base resources per turn."},
                 {Regeneration_3, "Resources yield 8x their base resources per turn."},
-                {Reproduction_1, "Not used yet!"},
-                {Reproduction_2, "Not used yet!"},
-                {Reproduction_3, "Not used yet!"}
+                {Reproduction_1, "Increase the chance for expanding to a new field at the end of the turn by 25%."},
+                {Reproduction_2, "Increase the chance for expanding to a new field at the end of the turn by 50%."},
+                {Reproduction_3, "Increase the chance for expanding to a new field at the end of the turn by 75%."}
         }
 );
 

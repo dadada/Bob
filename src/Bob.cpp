@@ -274,6 +274,8 @@ void Game::start()
     std::random_shuffle(players.begin(), players.end());
     this->turn = 0;
     Player::current_player = players[0];
+    trigger_event(BOB_NEXTROUNDEVENT, 0, nullptr, (void *) Player::current_player);
+    trigger_event(BOB_NEXTTURNEVENT, 0, nullptr, (void *) Player::current_player);
 }
 
 int Game::game_loop()
