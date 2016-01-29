@@ -44,7 +44,6 @@ public:
             FieldMeta *center = this->grid->get_field({0, 0, 0});
             this->field_box = new FieldBox(this->renderer, {0, 0, 100, 100}, fg, this->font, center);
             this->upgrade_box = new UpgradeBox(this->renderer, {0, 0, 100, 20}, fg, this->font, center);
-            this->test_box = new TextBox(this->renderer, {0, 0, 100, 20}, fg, this->font);
             this->next_turn_button = new NextTurnButtonBox(this->renderer,
                                                            {window_size.x - 100, window_size.y - 100, 1, 1}, fg,
                                                            this->font, &(this->players));
@@ -70,7 +69,6 @@ public:
         }
         delete text_input_box;
         delete this->next_turn_button;
-        delete this->test_box;
         delete this->upgrade_box;
         delete this->field_box;
         delete this->move_timer;
@@ -99,7 +97,6 @@ private:
     NextTurnButtonBox *next_turn_button;
     UpgradeBox *upgrade_box;
     FieldBox *field_box;
-    TextBox *test_box;
     TTF_Font *font;
     Window *window;
     Renderer *renderer;

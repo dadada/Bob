@@ -160,6 +160,7 @@ void FieldMeta::regenerate_resources()
     if (this->upgrades[Regeneration_3])
         this->resources *= 2;
     trigger_event(BOB_FIELDUPDATEEVENT, 0, (void *) this, nullptr);
+    this->changed = true;
 }
 
 Resource HexagonGrid::get_resources_of_cluster(Cluster *cluster)
@@ -256,14 +257,9 @@ Resource HexagonGrid::consume_resources_of_cluster(Cluster *cluster, Resource co
 
 bool Player::fight(FieldMeta *field)
 {
-    if (*this == *(field->get_owner())) // attacked field outside of the map or friendly fire
+    if (*this == *(field->get_owner())) // friendly fire
     {
         return false;
-    }
-    if (field->get_owner()->get_id().is_nil()) // still to be had
-    {
-        field->set_owner(this);
-        return true;
     }
 
     // defending player's defense against attacking player's offense
@@ -284,8 +280,10 @@ bool Player::fight(FieldMeta *field)
     if (power_level < 0) // attacking player has won
     {
         field->set_owner(this);
+        this->fought = true;
         return true;
     }
+    this->fought = true;
     return false;
 }
 
@@ -294,9 +292,9 @@ void FieldMeta::handle_event(const SDL_Event *event)
     if (event->type == BOB_NEXTROUNDEVENT)
     {
         this->regenerate_resources();
+        this->changed = true;
     }
 }
-
 
 void FieldMeta::load(SDL_Renderer *renderer, Layout *layout)
 {
@@ -416,7 +414,6 @@ void HexagonGrid::render(Renderer *renderer)
         this->load();
         this->changed = false;
     }
-    //this->load();
     renderer->copy(this->texture, &(this->layout->box), &(this->layout->box));
 }
 
@@ -463,8 +460,8 @@ void HexagonGrid::handle_event(SDL_Event *event)
                 p.x = (int) marker_pos.x;
                 p.y = (int) marker_pos.y;
                 this->move(mouse - p);
-                this->changed = true;
             }
+            this->update_marker();
             break;
         case SDL_MOUSEBUTTONDOWN:
             switch (event->button.button)
@@ -474,25 +471,42 @@ void HexagonGrid::handle_event(SDL_Event *event)
                     break;
                 case SDL_BUTTON_RIGHT:
                     trigger_event(BOB_FIELDSELECTEDEVENT, 0, (void *) this->marker, nullptr);
+                    this->changed = true;
                     break;
                 case SDL_BUTTON_LEFT:
-                    owner = this->marker->get_owner();
-                    if (*owner == *(Player::current_player))
+                    if (this->selecting)
                     {
-                        if (this->first_attack != nullptr)
+                        if (this->place(this->selecting_player, this->marker))
                         {
-                            this->first_attack->set_fighting(false);
+                            trigger_event(BOB_PLAYERADDED, 0, (void *) this->selecting_player, nullptr);
                         }
-                        this->first_attack = this->marker;
-                        this->first_attack->set_fighting(true);
+                        else
+                        {
+                            trigger_event(BOB_PLAYERADDED, 1, (void *) this->selecting_player, nullptr);
+                        }
+                        this->selecting = false;
                     }
-                    else if (this->first_attack != nullptr)
+                    else
                     {
-                        attacking = this->first_attack->get_owner();
-                        attacking->fight(this->marker);
-                        this->first_attack->set_fighting(false);
-                        this->first_attack = nullptr;
+                        owner = this->marker->get_owner();
+                        if (*owner == *(Player::current_player))
+                        {
+                            if (this->first_attack != nullptr)
+                            {
+                                this->first_attack->set_fighting(false);
+                            }
+                            this->first_attack = this->marker;
+                            this->first_attack->set_fighting(true);
+                        }
+                        else if (this->first_attack != nullptr)
+                        {
+                            attacking = this->first_attack->get_owner();
+                            attacking->fight(this->marker);
+                            this->first_attack->set_fighting(false);
+                            this->first_attack = nullptr;
+                        }
                     }
+                    changed = true;
                     break;
                 default:
                     break;
@@ -586,6 +600,7 @@ void HexagonGrid::update_dimensions(SDL_Point dimensions)
     this->layout->origin = {dimensions.x / 2, dimensions.y / 2};
     this->layout->box.w = dimensions.x;
     this->layout->box.h = dimensions.y;
+    this->changed = true;
 }
 
 Point HexagonGrid::field_to_point(FieldMeta *field)
@@ -599,7 +614,44 @@ bool inside_target(const SDL_Rect *target, const SDL_Point *position)
            target->y + target->h > position->y;
 }
 
-bool HexagonGrid::place(Player *player)
+bool HexagonGrid::place(Player *player, FieldMeta *center)
 {
-    return true;
+    std::vector<FieldMeta *> selected;
+    selected.push_back(center);
+    for (Uint8 i = 0; i < 6; i++)
+    {
+        FieldMeta *neighbor = center->get_neighbor(i);
+        if (neighbor->get_owner()->get_id() == boost::uuids::nil_uuid())
+        {
+            selected.push_back(neighbor);
+        }
+        else
+        {
+            return false;
+        }
+    }
+    static const Resource lower = {0, 0, 0};
+    Resource resources = {0, 0, 0};
+    for (auto r : selected)
+    {
+        resources += r->get_resources();
+    }
+    if (resources > lower)
+    {
+        for (auto i : selected)
+        {
+            i->set_owner(player);
+            i->set_offense(1);
+        }
+        return true;
+    }
+    return false;
+}
+
+void Player::handle_event(SDL_Event *event)
+{
+    if (event->type == BOB_NEXTROUNDEVENT)
+    {
+        this->fought = false;
+    }
 }

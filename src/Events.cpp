@@ -6,8 +6,8 @@ const Uint32 BOB_FIELDUPDATEEVENT = register_events(1);
 const Uint32 BOB_FIELDSELECTEDEVENT = register_events(1);
 const Uint32 BOB_FIELDUPGRADEVENT = register_events(1);
 const Uint32 BOB_NEXTTURNEVENT = register_events(1);
-const Uint32 BOB_ATTACKEVENTS = register_events(1);
-
+const Uint32 BOB_ATTACKEVENT = register_events(1);
+const Uint32 BOB_PLAYERADDED = register_events(1);
 
 bool Timer::MOUSE_LOCKED = false;
 

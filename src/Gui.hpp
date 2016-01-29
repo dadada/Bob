@@ -34,6 +34,8 @@ public:
 
     virtual void render(Renderer *renderer);
 
+    virtual void load() { this->changed = false; }
+
     virtual void set_visible(bool visibility) { this->visible = visibility; }
 
     SDL_Rect get_dimensions() { return this->dimensions; }
@@ -45,6 +47,7 @@ protected:
     SDL_Rect dimensions;
     SDL_Color color;
     bool visible;
+    bool changed;
 };
 
 class TextBox : public Box
@@ -53,17 +56,23 @@ public:
     TextBox(Renderer *renderer, SDL_Rect dimensions, SDL_Color color, TTF_Font *font_)
             : Box(renderer, dimensions, color), font(font_), lines(1)
     {
-        this->font_height = TTF_FontHeight(font);
+        this->load();
     }
 
-    bool load_text(std::string text);
+    void load();
+
+    void load_text(std::string text)
+    {
+        this->text = text;
+        changed = true;
+    }
 
     virtual void handle_event(const SDL_Event *event) { }
 
 protected:
     TTF_Font *font;
     Uint16 lines;
-    int font_height;
+    std::string text;
 };
 
 class TextInputBox : TextBox
@@ -74,6 +83,7 @@ public:
     {
         this->visible = false;
         this->output << Player::current_player->get_name() << "# ";
+        this->load();
         this->load_text(output.str());
     }
 

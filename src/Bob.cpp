@@ -5,6 +5,7 @@ void Game::handle_event(SDL_Event *event)
 {
     static SDL_Point window_size;
     std::string input;
+    std::ostringstream prompt;
     switch (event->type)
     {
         case (SDL_QUIT):
@@ -44,7 +45,11 @@ void Game::handle_event(SDL_Event *event)
             {
                 this->grid->handle_event(event);
                 this->field_box->handle_event(event);
-                this->upgrade_box->handle_event(event);
+                if (this->started)
+                {
+                    this->upgrade_box->handle_event(event);
+
+                }
             }
             break;
         case SDL_KEYDOWN:
@@ -79,13 +84,10 @@ void Game::handle_event(SDL_Event *event)
                     if (this->text_input_box->get_active())
                     {
                         this->text_input_box->stop();
-                        this->test_box->set_visible(false);
                     }
                     else
                     {
                         this->text_input_box->start();
-                        this->test_box->set_visible(true);
-
                     }
                     break;
                 case SDLK_RETURN:
@@ -133,16 +135,47 @@ void Game::handle_event(SDL_Event *event)
             {
                 this->text_input_box->handle_event(event);
             }
+            break;
         default:
-            if (event->type == BOB_MARKERUPDATE
-                || event->type == BOB_NEXTROUNDEVENT
-                || event->type == BOB_FIELDUPDATEEVENT
-                || event->type == BOB_FIELDSELECTEDEVENT
+            if ((event->type == BOB_MARKERUPDATE || event->type == BOB_FIELDSELECTEDEVENT)
+                && !this->text_input_box->get_active())
+            {
+                this->grid->handle_event(event);
+                this->field_box->handle_event(event);
+                if (this->started)
+                {
+                    this->upgrade_box->handle_event(event);
+                }
+                for (Player *p : this->players)
+                {
+                    p->handle_event(event);
+                }
+            }
+            if (event->type == BOB_NEXTROUNDEVENT || event->type == BOB_FIELDUPDATEEVENT
                 || event->type == BOB_FIELDUPGRADEVENT)
             {
                 this->grid->handle_event(event);
                 this->field_box->handle_event(event);
                 this->upgrade_box->handle_event(event);
+                for (Player *p : this->players)
+                {
+                    p->handle_event(event);
+                }
+            }
+            else if (event->type == BOB_PLAYERADDED && !this->started)
+            {
+                Player *added = (Player *) event->user.data1;
+                if (event->user.code == 0)
+                {
+                    this->players.push_back(added);
+                    prompt << "Added Player: " << added->get_name();
+                }
+                else
+                {
+                    prompt << "Failed to add Player: " << added->get_name();
+                    delete added;
+                }
+                this->text_input_box->prompt(prompt.str());
             }
             break;
     }
@@ -160,51 +193,73 @@ void Game::command(std::string input)
     {
         prompt << "This is a test!";
     }
-    else if (input == "next" && this->started)
+    else if (input == "debug")
     {
-        Player *last_player = Player::current_player;
-        this->turn = this->turn + 1;
-        if (this->turn == players.size())
+        //this->debug->toggle();
+    }
+    else if (input == "next")
+    {
+        if (this->started)
         {
-            this->turn = 0;
-            trigger_event(BOB_NEXTROUNDEVENT, 0, (void *) last_player, (void *) Player::current_player);
+            Player *last_player = Player::current_player;
+            this->turn = (this->turn + 1) % players.size();
+            Player::current_player = players[turn];
+            if (this->turn == 0)
+            {
+                trigger_event(BOB_NEXTROUNDEVENT, 0, (void *) last_player, (void *) Player::current_player);
+            }
+            else
+            {
+                trigger_event(BOB_NEXTTURNEVENT, 0, (void *) last_player, (void *) Player::current_player);
+            }
+            prompt << "Next player is: " << (Player::current_player)->get_name();
         }
         else
         {
-            trigger_event(BOB_NEXTTURNEVENT, 0, (void *) last_player, (void *) Player::current_player);
+            prompt << "The game was not started yet!";
         }
-        Player::current_player = players[turn];
-        prompt << "Next player is: " << (Player::current_player)->get_name();
     }
     else if (input == "surrender")
     {
         //Player::current_player->surrender();
     }
-    else if (!this->started && input.substr(0, 10) == "add player")
+    else if (input.substr(0, 10) == "add player")
     {
-        Player *added = new Player(input.substr(11, std::string::npos));
-        if (!this->grid->place(added))
+        if (!this->started)
         {
-            prompt << "Failed to add player:" << added->get_name();
-            delete added;
+            Player *added = new Player(input.substr(11, std::string::npos));
+            this->grid->set_selecting(true, added);
+            prompt << "Select a place, please!";
+            this->text_input_box->stop();
         }
         else
         {
-            this->players.push_back(added);
-            prompt << "Added player " << added->get_name();
+            prompt << "The game has already been started. No additional player will be accepted for this game. ";
         }
     }
-    else if (input == "start" && !this->started)
+    else if (input == "start")
     {
-        this->start();
-        this->started = true;
-        prompt << "Started the game.";
+        if (this->players.size() < 2)
+        {
+            prompt << "Please add at least one player, before starting the game.";
+        }
+        else if (!this->started)
+        {
+            this->start();
+            this->started = true;
+            prompt << "Started the game.";
+        }
+        else
+        {
+            prompt << "The game has already been started!";
+        }
     }
     this->text_input_box->prompt(prompt.str());
 }
 
 void Game::start()
 {
+    this->players.erase(players.begin()); // remove default player from vector
     std::random_shuffle(players.begin(), players.end());
     this->turn = 0;
     Player::current_player = players[0];
@@ -222,14 +277,16 @@ int Game::game_loop()
         {
             this->move_timer->reset_timer();
             SDL_Point move_by = {(this->move[1] - this->move[3]) * 20, (this->move[0] - this->move[2]) * 20};
-            this->grid->move(move_by);
+            if (move[0] || move[1] || move[2] || move[3])
+            {
+                this->grid->move(move_by);
+            }
         }
         if (this->frame_timer->get_timer() > 255)
         {
             fps = frame_counter / (this->frame_timer->reset_timer() / 1000.0);
-            frame_counter = 0;
             std::cout << fps << std::endl;
-            this->test_box->load_text(std::to_string(fps));
+            frame_counter = 0;
         }
         SDL_Event event;
         while (SDL_PollEvent(&event))
@@ -250,7 +307,6 @@ void Game::render()
         this->renderer->set_draw_color({0x0, 0x0, 0x0, 0xff});
         this->renderer->clear();
         this->grid->render(this->renderer);
-        this->test_box->render(this->renderer);
         this->field_box->render(this->renderer);
         this->upgrade_box->render(this->renderer);
         this->text_input_box->render(this->renderer);

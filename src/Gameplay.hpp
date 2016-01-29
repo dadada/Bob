@@ -511,7 +511,7 @@ public:
     Player()
             : name("Default Player"), uuid(boost::uuids::nil_uuid()) { }
     Player(std::string name_)
-            : name(name_), uuid(boost::uuids::basic_random_generator<boost::mt19937>()())
+            : name(name_), uuid(boost::uuids::basic_random_generator<boost::mt19937>()()), fought(false)
     {
         // use the last 24 bits of the tag for the color
         boost::uuids::uuid id = this->uuid;
@@ -543,12 +543,15 @@ public:
         return !(*this == rhs);
     }
 
+    void handle_event(SDL_Event *event);
+
     static Player *current_player;
 
 private:
     boost::uuids::uuid uuid;
     SDL_Color color;
     std::string name;
+    bool fought;
 };
 
 class Grid;
@@ -559,7 +562,7 @@ class FieldMeta
 {
 public:
     FieldMeta(HexagonGrid *grid_, Field field_, Player *owner_)
-            : grid(grid_), field(field_), owner(owner_)
+            : grid(grid_), field(field_), owner(owner_), changed(true)
     {
         this->fighting = false;
         this->upgrades = 0;
@@ -569,8 +572,8 @@ public:
         this->resources_base.circle = distro(rng);
         this->resources_base.triangle = distro(rng);
         this->resources_base.square = distro(rng);
-        this->offense = 1;
-        this->defense = 1;
+        this->offense = 0;
+        this->defense = 0;
         this->regenerate_resources();
     }
 
@@ -579,6 +582,10 @@ public:
     int get_offense() { return this->offense; }
 
     int get_defense() { return this->defense; }
+
+    void set_offense(int off) { this->offense = off; }
+
+    void set_defense(int def) { this->defense = def; }
 
     Field get_field() { return this->field; }
 
@@ -608,6 +615,7 @@ public:
 
 private:
     bool fighting;
+    bool changed;
     const Field field;
     HexagonGrid *grid;
     Player *owner;
@@ -646,6 +654,7 @@ public:
             }
         }
         this->marker = new FieldMeta(this, new_field, this->default_player);
+        this->load();
     }
 
     ~HexagonGrid()
@@ -686,10 +695,18 @@ public:
 
     void handle_event(SDL_Event *event);
 
-    bool place(Player *player);
+    bool place(Player *player, FieldMeta *center);
+
+    void set_selecting(bool state, Player *player)
+    {
+        this->selecting = state;
+        this->selecting_player = player;
+    }
 
 private:
     bool changed;
+    bool selecting;
+    Player *selecting_player;
     FieldMeta *first_attack;
     Renderer *renderer;
     SDL_Texture *texture;

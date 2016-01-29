@@ -19,18 +19,22 @@ TTF_Font *load_font_from_file(std::string path_to_file, int size)
     return font;
 }
 
-bool TextBox::load_text(std::string text)
+void TextBox::load()
 {
     this->renderer->set_draw_color({0, 0, 0, 0xff});
-    const char *displayed_text = text.c_str();
+    if (this->text.size() < 1)
+    {
+        this->text += " ";
+    }
+    const char *displayed_text = this->text.c_str();
     SDL_Surface *text_surface = TTF_RenderUTF8_Blended_Wrapped(this->font, displayed_text, this->color,
                                                                this->dimensions.w);
-    this->dimensions.h = text_surface->h;
     if (text_surface == nullptr)
     {
         SDL_FreeSurface(text_surface);
         throw SDL_TTFException();
     }
+    this->dimensions.h = text_surface->h;
     SDL_Surface *surface = SDL_CreateRGBSurface(0, this->dimensions.w, text_surface->h, 32, rmask, gmask, bmask,
                                                 amask);
     if (surface == nullptr || SDL_LockSurface(surface) < 0 ||
@@ -57,7 +61,6 @@ bool TextBox::load_text(std::string text)
         throw SDL_TextureException();
     }
     SDL_SetRenderTarget(this->renderer->get_renderer(), nullptr); // reset the render target
-    return (this->texture != nullptr);
 }
 
 void Container::handle_event(SDL_Event *event)
@@ -73,7 +76,7 @@ void FieldBox::handle_event(const SDL_Event *event)
         FieldMeta *field_update = reinterpret_cast<FieldMeta *>(event->user.data1);
         if (field_update == this->field)
         {
-            this->update();
+            changed = true;
         }
     }
     else if (event->type == BOB_MARKERUPDATE)
@@ -85,6 +88,7 @@ void FieldBox::handle_event(const SDL_Event *event)
         SDL_GetMouseState(&mouse.x, &mouse.y);
         this->update_position(mouse);
         this->visible = true;
+        changed = true;
     }
 }
 
@@ -100,6 +104,7 @@ void FieldBox::update()
     << "▲ " << (int) cluster_resources.triangle << " (" << (int) field_resources.triangle << ")" << "\n"
     << "■ " << (int) cluster_resources.square << " (" << (int) field_resources.square << ")" << "\n";
     this->load_text(output.str());
+    changed = true;
 }
 
 void UpgradeButtonBox::set_active(bool state)
@@ -115,6 +120,7 @@ void UpgradeButtonBox::set_active(bool state)
         this->color = {0, 0, 0, 0xff};
         this->load_text(UPGRADE_NAMES.at(this->upgrade));
     }
+    changed = true;
 }
 
 void UpgradeBox::update_upgrade_boxes()
@@ -124,6 +130,7 @@ void UpgradeBox::update_upgrade_boxes()
     {
         this->upgrades[i]->set_active(active_upgrades[i]);
     }
+    changed = true;
 }
 
 void UpgradeBox::handle_event(const SDL_Event *event)
@@ -133,6 +140,7 @@ void UpgradeBox::handle_event(const SDL_Event *event)
         if (event->type == BOB_FIELDUPDATEEVENT)
         {
             this->update_upgrade_boxes();
+            changed = true;
         }
         else if (event->type == SDL_MOUSEBUTTONDOWN)
         {
@@ -147,6 +155,7 @@ void UpgradeBox::handle_event(const SDL_Event *event)
             {
                 this->marked_upgrade->handle_event(event);
             }
+            changed = true;
         }
         else if (event->type == SDL_MOUSEMOTION && this->visible)
         {
@@ -171,6 +180,7 @@ void UpgradeBox::handle_event(const SDL_Event *event)
                     this->upgrade_info->load_text(output.str());
                 }
             }
+            changed = true;
         }
     }
     else // NOT visible
@@ -187,6 +197,7 @@ void UpgradeBox::handle_event(const SDL_Event *event)
                 this->field = selected;
                 this->update_upgrade_boxes();
                 this->set_visible(true);
+                changed = true;
             }
         }
     }
@@ -204,6 +215,7 @@ void UpgradeButtonBox::handle_event(const SDL_Event *event)
             if (*(Player::current_player) == *(field->get_owner()))
             {
                 field->upgrade(this->upgrade);
+                changed = true;
             }
         }
     }
@@ -216,9 +228,11 @@ void UpgradeBox::render(Renderer *ext_renderer)
     {
         box->render(ext_renderer);
     }
-    SDL_Rect dim = this->upgrades[0]->get_dimensions();
+    this->changed = false;
+    /*SDL_Rect dim = this->upgrades[0]->get_dimensions();
     this->dimensions.w = dim.w;
     this->dimensions.h = dim.h * (int) this->upgrades.size();
+     */
 }
 
 void Container::render(Renderer *renderer)
@@ -231,10 +245,15 @@ void Container::render(Renderer *renderer)
 
 void Box::render(Renderer *ext_renderer)
 {
+    if (changed)
+    {
+        this->load();
+    }
     if (this->visible && this->texture != nullptr)
     {
         ext_renderer->copy(this->texture, nullptr, &(this->dimensions));
     }
+    this->changed = false;
 }
 
 void Container::set_visible(bool visible)
@@ -309,6 +328,7 @@ void NextTurnButtonBox::handle_event(const SDL_Event *event)
             std::ostringstream text;
             text << "NEXT TURN" << "\n\n" << Player::current_player->get_name();
             this->load_text(text.str());
+            this->changed = true;
         }
     }
 }
@@ -375,6 +395,7 @@ void TextInputBox::handle_event(const SDL_Event *event)
         if (text.empty())
             text += " ";
         this->load_text(text);
+        this->changed = true;
     }
 }
 
@@ -389,14 +410,21 @@ void TextInputBox::prompt(std::string message)
         output.str("");
         this->prompt(message);
     }
+    this->input.str("");
+    this->changed = true;
 }
 
 void TextInputBox::render(Renderer *ext_renderer)
 {
+    if (this->changed)
+    {
+        this->load();
+    }
     if (this->texture != nullptr && this->visible)
     {
         ext_renderer->copy(this->texture, nullptr, &(this->dimensions));
     }
+    this->changed = false;
 }
 
 void TextInputBox::update_dimensions(SDL_Rect rect)
@@ -404,7 +432,7 @@ void TextInputBox::update_dimensions(SDL_Rect rect)
     this->dimensions.x = rect.x;
     this->dimensions.y = rect.y;
     this->dimensions.w = rect.w;
-    this->load_text(output.str());
+    this->changed = true;
 }
 
 bool TextInputBox::get_active()
