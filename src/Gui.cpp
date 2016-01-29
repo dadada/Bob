@@ -100,6 +100,7 @@ void FieldBox::update()
     Resource field_resources = this->field->get_resources();
     std::ostringstream output;
     output << this->field->get_owner()->get_name() << "\n"
+    << "off " << this->field->get_offense() << "\ndef " << this->field->get_defense() << "\n"
     << "● " << (int) cluster_resources.circle << " (" << (int) field_resources.circle << ")" << "\n"
     << "▲ " << (int) cluster_resources.triangle << " (" << (int) field_resources.triangle << ")" << "\n"
     << "■ " << (int) cluster_resources.square << " (" << (int) field_resources.square << ")" << "\n";

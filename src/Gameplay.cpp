@@ -156,9 +156,15 @@ void FieldMeta::regenerate_resources()
     if (this->upgrades[Regeneration_1])
         this->resources *= 2;
     if (this->upgrades[Regeneration_2])
-        this->resources *= 2;
+        this->resources *= 4;
     if (this->upgrades[Regeneration_3])
-        this->resources *= 2;
+        this->resources *= 8;
+    if (this->upgrades[Reproduction_1])
+        this->reproduction *= 1.25;
+    if (this->upgrades[Reproduction_2])
+        this->reproduction *= 1.50;
+    if (this->upgrades[Reproduction_2])
+        this->reproduction *= 2.0;
     trigger_event(BOB_FIELDUPDATEEVENT, 0, (void *) this, nullptr);
     this->changed = true;
 }
@@ -275,21 +281,21 @@ bool Player::fight(FieldMeta *field)
         {
             continue;
         }
-        if (*(neighbor->get_owner()) == *this) // comparison by UUID
-        {
-            power_level -= neighbor->get_offense();
-            is_neighbor = true;
-        }
-        else if (*(neighbor->get_owner()) == *(field->get_owner()))
+        if (*(neighbor->get_owner()) == *this) // comparison by UUID, attacking player
         {
             Cluster temp_attackers_cluster = neighbor->get_grid()->get_cluster(neighbor);
             attackers_cluster.insert(temp_attackers_cluster.begin(), temp_attackers_cluster.end());
+            power_level -= neighbor->get_offense();
+            is_neighbor = true;
+        }
+        else if (*(neighbor->get_owner()) == *(field->get_owner())) // attacked player
+        {
             power_level += neighbor->get_defense();
         }
         // else: ignore, field / player not part of the fight (e.g. default player)
     }
     Resource costs = {(Uint32) std::abs(power_level), (Uint32) std::abs(power_level), (Uint32) std::abs(power_level)};
-    if (power_level < 0 && is_neighbor) // attacking player has won
+    if (power_level < 1 && is_neighbor) // attacking player has won
     {
         field->get_grid()->consume_resources_of_cluster(&attackers_cluster, costs);
         field->get_grid()->consume_resources_of_cluster(&defenders_cluster, costs);
@@ -329,7 +335,7 @@ void FieldMeta::load(SDL_Renderer *renderer, Layout *layout)
     }
     if (this->owner->get_id().is_nil())
         color = {0x77, 0x77, 0x77, 0xff};
-    if (this->fighting)
+    if (this->get_grid()->get_attack_marker() == this)
         color = {0x0, 0x77, 0x77, 0xff};
     filledPolygonRGBA(renderer, vx, vy, 6, color.r, color.g, color.b, 0x77);
     SDL_Color inverse;
@@ -435,8 +441,6 @@ void HexagonGrid::render(Renderer *renderer)
 
 void HexagonGrid::handle_event(SDL_Event *event)
 {
-    Player *attacking;
-    Player *owner;
     SDL_Point mouse = {0, 0};
     SDL_GetMouseState(&mouse.x, &mouse.y);
     int scroll = this->layout->size / 10 * event->wheel.y;
@@ -490,30 +494,19 @@ void HexagonGrid::handle_event(SDL_Event *event)
                     this->changed = true;
                     break;
                 case SDL_BUTTON_LEFT:
-                    if (this->selecting)
+                    if (this->placing)
                     {
                         trigger_event(BOB_FIELDSELECTEDEVENT, 0, (void *) this->marker, nullptr);
-                        this->selecting = false;
+                        this->placing = false;
                     }
-                    else
+                    else if (this->attack_marker != nullptr && this->attack_marker == this->marker)
                     {
-                        owner = this->marker->get_owner();
-                        if (*owner == *(Player::current_player))
-                        {
-                            if (this->first_attack != nullptr)
-                            {
-                                this->first_attack->set_fighting(false);
-                            }
-                            this->first_attack = this->marker;
-                            this->first_attack->set_fighting(true);
-                        }
-                        else if (this->first_attack != nullptr)
-                        {
-                            attacking = this->first_attack->get_owner();
-                            attacking->fight(this->marker);
-                            this->first_attack->set_fighting(false);
-                            this->first_attack = nullptr;
-                        }
+                        Player::current_player->fight(this->attack_marker);
+                        this->attack_marker = nullptr;
+                    }
+                    else if (this->attack_marker == nullptr)
+                    {
+                        this->attack_marker = this->marker;
                     }
                     changed = true;
                     break;
@@ -554,6 +547,8 @@ void HexagonGrid::handle_event(SDL_Event *event)
                 for (auto foo : aquired)
                 {
                     foo->set_owner(Player::current_player);
+                    foo->set_defense(1);
+                    foo->set_offense(1);
                 }
                 this->changed = true;
             }
@@ -679,6 +674,7 @@ bool HexagonGrid::place(Player *player, FieldMeta *center)
         {
             i->set_owner(player);
             i->set_offense(1);
+            i->set_defense(1);
         }
         return true;
     }

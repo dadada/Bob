@@ -566,7 +566,6 @@ public:
         std::default_random_engine generator;
         std::normal_distribution<double> distribution(0.0, 1.0);
         this->reproduction = distribution(generator);
-        this->fighting = false;
         this->upgrades = 0;
         static std::random_device rd;
         std::mt19937 rng(rd());
@@ -611,15 +610,10 @@ public:
 
     FieldMeta *get_neighbor(Uint8 direction);
 
-    bool get_fighting() { return this->fighting; }
-
-    void set_fighting(bool state) { this->fighting = state; }
-
     double get_reproduction() { return this->reproduction; }
 
 private:
     double reproduction;
-    bool fighting;
     bool changed;
     const Field field;
     HexagonGrid *grid;
@@ -639,7 +633,7 @@ public:
     HexagonGrid(Sint16 grid_radius, Layout *layout_, Renderer *renderer_)
             : layout(layout_), radius(grid_radius), renderer(renderer_)
     {
-        this->first_attack = nullptr;
+        this->attack_marker = nullptr;
         this->texture = nullptr;
         this->panning = false;
         std::unordered_map<Field, FieldMeta *> fields = std::unordered_map<Field, FieldMeta *>();
@@ -702,12 +696,14 @@ public:
 
     bool place(Player *player, FieldMeta *center);
 
-    void set_selecting(bool state) { this->selecting = state; }
+    void set_selecting(bool state) { this->placing = state; }
+
+    FieldMeta *get_attack_marker() { return this->attack_marker; }
 
 private:
     bool changed;
-    bool selecting;
-    FieldMeta *first_attack;
+    bool placing;
+    FieldMeta *attack_marker;
     Renderer *renderer;
     SDL_Texture *texture;
     std::unordered_map<Field, FieldMeta *> fields;
