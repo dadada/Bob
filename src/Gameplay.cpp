@@ -272,7 +272,7 @@ bool Player::fight(FieldMeta *field)
     Cluster defenders_cluster = field->get_grid()->get_cluster(field);
     Resource defenders_cluster_res = field->get_grid()->get_resources_of_cluster(&defenders_cluster);
     Cluster attackers_cluster;
-    // defending player's defense against attacking player's offense
+    // defending player's Defense against attacking player's offense
     int power_level = field->get_defense(); // it's over 9000
     for (Uint8 i = 0; i < 6; i++)
     {
@@ -295,7 +295,8 @@ bool Player::fight(FieldMeta *field)
         // else: ignore, field / player not part of the fight (e.g. default player)
     }
     Resource costs = {(Uint32) std::abs(power_level), (Uint32) std::abs(power_level), (Uint32) std::abs(power_level)};
-    if (power_level < 1 && is_neighbor) // attacking player has won
+    if (power_level < 2 && is_neighbor &&
+        costs <= field->get_grid()->get_resources_of_cluster(&attackers_cluster)) // attacking player has won
     {
         field->get_grid()->consume_resources_of_cluster(&attackers_cluster, costs);
         field->get_grid()->consume_resources_of_cluster(&defenders_cluster, costs);
@@ -499,9 +500,12 @@ void HexagonGrid::handle_event(SDL_Event *event)
                         trigger_event(BOB_FIELDSELECTEDEVENT, 0, (void *) this->marker, nullptr);
                         this->placing = false;
                     }
-                    else if (this->attack_marker != nullptr && this->attack_marker == this->marker)
+                    else if (this->attack_marker != nullptr)
                     {
-                        Player::current_player->fight(this->attack_marker);
+                        if (this->attack_marker == this->marker)
+                        {
+                            Player::current_player->fight(this->attack_marker);
+                        }
                         this->attack_marker = nullptr;
                     }
                     else if (this->attack_marker == nullptr)
@@ -640,10 +644,10 @@ Point HexagonGrid::field_to_point(FieldMeta *field)
     return field->get_field().field_to_point(this->layout);
 }
 
-bool inside_target(const SDL_Rect *target, const SDL_Point *position)
+bool inside_target(const SDL_Rect *box, const SDL_Point *position)
 {
-    return target->x < position->x && target->x + target->w > position->x && target->y < position->y &&
-           target->y + target->h > position->y;
+    return box->x < position->x && box->x + box->w > position->x && box->y < position->y &&
+           box->y + box->h > position->y;
 }
 
 bool HexagonGrid::place(Player *player, FieldMeta *center)
@@ -686,5 +690,20 @@ void Player::handle_event(SDL_Event *event)
     if (event->type == BOB_NEXTROUNDEVENT)
     {
         // nothing atm
+    }
+}
+
+void HexagonGrid::surrender(Player *player)
+{
+    for (std::pair<Field, FieldMeta *> pair : this->fields)
+    {
+        if (pair.second != nullptr && *(pair.second->get_owner()) == *player)
+        {
+            Field old_field = pair.second->get_field();
+            delete pair.second;
+            this->fields.erase(pair.first);
+            FieldMeta *new_field = new FieldMeta(this, old_field, this->default_player);
+            this->fields.insert({old_field, new_field});
+        }
     }
 }

@@ -205,18 +205,7 @@ void Game::command(std::string input)
     {
         if (this->started)
         {
-            Player *last_player = Player::current_player;
-            this->turn = (this->turn + 1) % players.size();
-            Player::current_player = players[turn];
-            if (this->turn == 0)
-            {
-                trigger_event(BOB_NEXTTURNEVENT, 0, (void *) last_player, (void *) Player::current_player);
-                trigger_event(BOB_NEXTROUNDEVENT, 0, (void *) last_player, (void *) Player::current_player);
-            }
-            else
-            {
-                trigger_event(BOB_NEXTTURNEVENT, 0, (void *) last_player, (void *) Player::current_player);
-            }
+            this->next_turn();
             prompt << "Next player is: " << (Player::current_player)->get_name();
         }
         else
@@ -226,7 +215,17 @@ void Game::command(std::string input)
     }
     else if (input == "surrender")
     {
-        //Player::current_player->surrender();
+        this->grid->surrender(Player::current_player);
+        prompt << "Player " << Player::current_player->get_name() << " surrendered!\n";
+        for (int i = 0; i < this->players.size(); i++)
+        {
+            if (this->players[i] == Player::current_player)
+            {
+                delete this->players[i];
+                this->players.erase(this->players.begin() + i);
+            }
+        }
+        this->next_turn();
     }
     else if (input.substr(0, 10) == "add player")
     {
@@ -276,6 +275,32 @@ void Game::start()
     Player::current_player = players[0];
     trigger_event(BOB_NEXTROUNDEVENT, 0, nullptr, (void *) Player::current_player);
     trigger_event(BOB_NEXTTURNEVENT, 0, nullptr, (void *) Player::current_player);
+}
+
+void Game::next_turn()
+{
+    if (!this->players.empty())
+    {
+        Player *last_player = Player::current_player;
+        this->turn = (this->turn + 1) % players.size();
+        Player::current_player = players[turn];
+        if (this->turn == 0)
+        {
+            trigger_event(BOB_NEXTTURNEVENT, 0, (void *) last_player, (void *) Player::current_player);
+            trigger_event(BOB_NEXTROUNDEVENT, 0, (void *) last_player, (void *) Player::current_player);
+        }
+        else
+        {
+            trigger_event(BOB_NEXTTURNEVENT, 0, (void *) last_player, (void *) Player::current_player);
+        }
+    }
+    else
+    {
+        Player *def = new Player();
+        Player::current_player = def;
+        this->players.push_back(def);
+        this->started = false;
+    }
 }
 
 int Game::game_loop()

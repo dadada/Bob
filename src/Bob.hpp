@@ -94,6 +94,8 @@ public:
 
     int game_loop();
 
+    void next_turn();
+
 private:
     bool started;
     Player *adding;

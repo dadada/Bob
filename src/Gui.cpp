@@ -152,10 +152,7 @@ void UpgradeBox::handle_event(const SDL_Event *event)
                 Timer::MOUSE_LOCKED = false;
                 this->set_visible(false);
             }
-            else
-            {
-                this->marked_upgrade->handle_event(event);
-            }
+            this->marked_upgrade->handle_event(event);
             changed = true;
         }
         else if (event->type == SDL_MOUSEMOTION && this->visible)
@@ -230,10 +227,8 @@ void UpgradeBox::render(Renderer *ext_renderer)
         box->render(ext_renderer);
     }
     this->changed = false;
-    /*SDL_Rect dim = this->upgrades[0]->get_dimensions();
-    this->dimensions.w = dim.w;
-    this->dimensions.h = dim.h * (int) this->upgrades.size();
-     */
+    this->dimensions = this->upgrades[0]->get_dimensions();
+    this->dimensions.h *= this->upgrades.size();
 }
 
 void Container::render(Renderer *renderer)
@@ -438,5 +433,5 @@ void TextInputBox::update_dimensions(SDL_Rect rect)
 
 bool TextInputBox::get_active()
 {
-    return SDL_IsTextInputActive() == SDL_TRUE;
+    return SDL_IsTextInputActive() == true;
 }

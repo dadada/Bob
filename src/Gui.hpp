@@ -174,13 +174,11 @@ public:
     UpgradeBox(Renderer *renderer, SDL_Rect dimensions, SDL_Color color, TTF_Font *font, FieldMeta *field_)
             : Box(renderer, dimensions, color), field(field_)
     {
-        int y = dimensions.y;
         for (Upgrade upgrade : UPGRADES)
         {
-            UpgradeButtonBox *box = new UpgradeButtonBox(renderer, {0, y, dimensions.w, 20}, color, font, this,
-                                                         upgrade);
+            UpgradeButtonBox *box = new UpgradeButtonBox(renderer, {0, dimensions.y, dimensions.w, 20}, color, font,
+                                                         this, upgrade);
             box->load_text(UPGRADE_NAMES.at(upgrade));
-            y += 20;
             this->marked_upgrade = box;
             this->upgrades.push_back(box);
         }

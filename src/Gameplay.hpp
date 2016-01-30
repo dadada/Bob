@@ -445,13 +445,20 @@ enum Upgrade
     Regeneration_3,
     Reproduction_1,
     Reproduction_2,
-    Reproduction_3
+    Reproduction_3,
+    Offense_1,
+    Offense_2,
+    Offense_3,
+    Defense_1,
+    Defense_2,
+    Defense_3,
 };
 
 const std::vector<Upgrade> UPGRADES = {Regeneration_1, Regeneration_2, Regeneration_3, Reproduction_1, Reproduction_2,
-                                       Reproduction_3};
+                                       Reproduction_3, Offense_1, Offense_2, Offense_3, Defense_1, Defense_2, Defense_3
+};
 
-const int NUM_UPGRADES = 6;
+const int NUM_UPGRADES = 12;
 
 typedef std::bitset<NUM_UPGRADES> UpgradeFlags;
 
@@ -476,7 +483,13 @@ const std::unordered_map<Upgrade, Resource> UPGRADE_COSTS(
                 {Regeneration_3, {16, 16, 16}},
                 {Reproduction_1, {4,  4,  4}},
                 {Reproduction_2, {8,  8,  8}},
-                {Reproduction_3, {16, 16, 16}}
+                {Reproduction_3, {16, 16, 16}},
+                {Offense_1,      {4,  4,  4}},
+                {Offense_2,      {8,  8,  8}},
+                {Offense_3,      {16, 16, 16}},
+                {Defense_1,      {4,  4,  4}},
+                {Defense_2,      {8,  8,  8}},
+                {Defense_3,      {16, 16, 16}}
         }
 );
 
@@ -487,9 +500,16 @@ const std::unordered_map<Upgrade, std::string> UPGRADE_NAMES(
                 {Regeneration_3, "Regeneration 3"},
                 {Reproduction_1, "Reproduction 1"},
                 {Reproduction_2, "Reproduction 2"},
-                {Reproduction_3, "Reproduction 3"}
+                {Reproduction_3, "Reproduction 3"},
+                {Offense_1,      "Offense 1"},
+                {Offense_2,      "Offense 2"},
+                {Offense_3,      "Offense 3"},
+                {Defense_1,      "Defense 1"},
+                {Defense_2,      "Defense 2"},
+                {Defense_3,      "Offense 3"}
         }
 );
+
 
 const std::unordered_map<Upgrade, std::string> UPGRADE_TEXTS(
         {
@@ -498,7 +518,13 @@ const std::unordered_map<Upgrade, std::string> UPGRADE_TEXTS(
                 {Regeneration_3, "Resources yield 8x their base resources per turn."},
                 {Reproduction_1, "Increase the chance for expanding to a new field at the end of the turn by 25%."},
                 {Reproduction_2, "Increase the chance for expanding to a new field at the end of the turn by 50%."},
-                {Reproduction_3, "Increase the chance for expanding to a new field at the end of the turn by 75%."}
+                {Reproduction_3, "Increase the chance for expanding to a new field at the end of the turn by 75%."},
+                {Offense_1,      "Double your offense."},
+                {Offense_2,      "Double your offense."},
+                {Offense_3,      "Double your offense."},
+                {Defense_1,      "Double your defense."},
+                {Defense_2,      "Double your defense."},
+                {Defense_3,      "Double your defense."}
         }
 );
 
@@ -580,9 +606,29 @@ public:
 
     HexagonGrid *get_grid() { return this->grid; }
 
-    int get_offense() { return this->offense; }
+    int get_offense()
+    {
+        int factor = 1;
+        if (this->get_upgrades()[Offense_1])
+            factor *= 2;
+        if (this->get_upgrades()[Offense_2])
+            factor *= 2;
+        if (this->get_upgrades()[Offense_3])
+            factor *= 2;
+        return this->offense * factor;
+    }
 
-    int get_defense() { return this->defense; }
+    int get_defense()
+    {
+        int factor = 1;
+        if (this->upgrades[Defense_1])
+            factor *= 2;
+        if (this->get_upgrades()[Defense_2])
+            factor *= 2;
+        if (this->get_upgrades()[Defense_3])
+            factor *= 2;
+        return this->offense * factor;
+    }
 
     void set_offense(int off) { this->offense = off; }
 
@@ -699,6 +745,8 @@ public:
     void set_selecting(bool state) { this->placing = state; }
 
     FieldMeta *get_attack_marker() { return this->attack_marker; }
+
+    void surrender(Player *player);
 
 private:
     bool changed;
