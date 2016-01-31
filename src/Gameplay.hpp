@@ -516,9 +516,9 @@ const std::unordered_map<Upgrade, std::string> UPGRADE_TEXTS(
                 {Regeneration_1, "Resources yield 2x their base resources per turn."},
                 {Regeneration_2, "Resources yield 4x their base resources per turn."},
                 {Regeneration_3, "Resources yield 8x their base resources per turn."},
-                {Reproduction_1, "Increase the chance for expanding to a new field at the end of the turn by 25%."},
-                {Reproduction_2, "Increase the chance for expanding to a new field at the end of the turn by 50%."},
-                {Reproduction_3, "Increase the chance for expanding to a new field at the end of the turn by 75%."},
+                {Reproduction_1, "Increase the chance for expanding to a new field at the end of the turn by 5%."},
+                {Reproduction_2, "Increase the chance for expanding to a new field at the end of the turn by 10%."},
+                {Reproduction_3, "Increase the chance for expanding to a new field at the end of the turn by 20%."},
                 {Offense_1,      "Double your offense."},
                 {Offense_2,      "Double your offense."},
                 {Offense_3,      "Double your offense."},
@@ -586,9 +586,6 @@ public:
     FieldMeta(HexagonGrid *grid_, Field field_, Player &owner_)
             : grid(grid_), field(field_), owner(owner_), changed(true)
     {
-        std::default_random_engine generator;
-        std::normal_distribution<double> distribution(0.0, 1.0);
-        this->reproduction = distribution(generator);
         this->upgrades = 0;
         static std::random_device rd;
         std::mt19937 rng(rd());
@@ -642,9 +639,11 @@ public:
     bool upgrade(Upgrade upgrade);
     void handle_event(const SDL_Event *event);
     FieldMeta *get_neighbor(Uint8 direction);
-    double get_reproduction() { return this->reproduction; }
+    double get_reproduction()
+    {
+        return upgrades[Reproduction_1] * 0.05 + upgrades[Reproduction_2] * 0.1 + upgrades[Reproduction_3] * 0.2 + 0.01;
+    }
 private:
-    double reproduction;
     bool changed;
     const Field field;
     HexagonGrid *grid;

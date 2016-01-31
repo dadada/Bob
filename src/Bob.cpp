@@ -233,7 +233,7 @@ void Game::command(std::string input)
     {
         if (PlayerManager::pm->get_num_players() < 2)
         {
-            prompt << "Please add at least one player, before starting the game.";
+            prompt << "Please add at least two players, before starting the game.";
         }
         else if (!this->started)
         {

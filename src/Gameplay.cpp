@@ -159,12 +159,6 @@ void FieldMeta::regenerate_resources()
         this->resources *= 4;
     if (this->upgrades[Regeneration_3])
         this->resources *= 8;
-    if (this->upgrades[Reproduction_1])
-        this->reproduction *= 1.25;
-    if (this->upgrades[Reproduction_2])
-        this->reproduction *= 1.50;
-    if (this->upgrades[Reproduction_2])
-        this->reproduction *= 2.0;
     trigger_event(BOB_FIELDUPDATEEVENT, 0, (void *) this, nullptr);
     this->changed = true;
 }
@@ -525,7 +519,7 @@ void HexagonGrid::handle_event(SDL_Event *event)
             if (event->type == BOB_NEXTTURNEVENT || event->type == BOB_NEXTROUNDEVENT)
             {
                 std::default_random_engine generator;
-                std::normal_distribution<double> distribution(0.0, 1.0);
+                std::uniform_real_distribution<double> distribution(0.0, 1.0);
                 std::unordered_set<FieldMeta *> aquired;
                 for (auto pair : this->fields)
                 {
@@ -535,10 +529,13 @@ void HexagonGrid::handle_event(SDL_Event *event)
                         for (Uint8 i = 0; i < 6; i++)
                         {
                             FieldMeta *neighbor = field->get_neighbor(i);
-                            if (neighbor != nullptr && neighbor->get_owner() == PlayerManager::pm->default_player
-                                && (neighbor->get_reproduction() > distribution(generator)))
+                            if (neighbor != nullptr && neighbor->get_owner() == PlayerManager::pm->default_player)
                             {
-                                aquired.insert(neighbor);
+                                double reproduction = neighbor->get_reproduction();
+                                if(reproduction > distribution(generator))
+                                {
+                                    aquired.insert(neighbor);
+                                }
                             }
                         }
                     }
