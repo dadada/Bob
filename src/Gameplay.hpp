@@ -532,10 +532,10 @@ class FieldMeta;
 
 class Player
 {
-
 public:
     Player()
             : name("Default Player"), uuid(boost::uuids::nil_uuid()) { }
+
     Player(std::string name_)
             : name(name_), uuid(boost::uuids::basic_random_generator<boost::mt19937>()())
     {
@@ -570,9 +570,6 @@ public:
     }
 
     void handle_event(SDL_Event *event);
-
-    static Player *current_player;
-
 private:
     boost::uuids::uuid uuid;
     SDL_Color color;
@@ -586,7 +583,7 @@ class HexagonGrid;
 class FieldMeta
 {
 public:
-    FieldMeta(HexagonGrid *grid_, Field field_, Player *owner_)
+    FieldMeta(HexagonGrid *grid_, Field field_, Player &owner_)
             : grid(grid_), field(field_), owner(owner_), changed(true)
     {
         std::default_random_engine generator;
@@ -631,39 +628,27 @@ public:
     }
 
     void set_offense(int off) { this->offense = off; }
-
     void set_defense(int def) { this->defense = def; }
-
     Field get_field() { return this->field; }
 
-    Player *get_owner() { return this->owner; }
+    Player &get_owner() { return this->owner; }
 
-    void set_owner(Player *player) { this->owner = player; }
-
+    void set_owner(Player &player) { this->owner = player; }
     void load(SDL_Renderer *renderer, Layout *layout);
-
     Resource get_resources() { return this->resources; }
-
     UpgradeFlags get_upgrades() { return this->upgrades; }
-
     void consume_resources(Resource costs);
-
     void regenerate_resources();
-
     bool upgrade(Upgrade upgrade);
-
     void handle_event(const SDL_Event *event);
-
     FieldMeta *get_neighbor(Uint8 direction);
-
     double get_reproduction() { return this->reproduction; }
-
 private:
     double reproduction;
     bool changed;
     const Field field;
     HexagonGrid *grid;
-    Player *owner;
+    Player owner;
     UpgradeFlags upgrades;
     Resource resources_base; // without upgrades applied, used as basis of regeneration
     Resource resources; // actual current resources
@@ -672,6 +657,42 @@ private:
 };
 
 typedef std::unordered_set<FieldMeta *> Cluster;
+
+class HexagonGrid;
+
+class PlayerManager
+{
+public:
+    PlayerManager()
+    {
+        players = std::vector<Player>();
+        current_player = players.begin();
+        default_player = Player();
+    }
+
+    Player &get_current();
+
+    void next_turn();
+
+    void shuffle();
+
+    void surrender(Player &player, HexagonGrid *grid);
+
+    void add_player(Player &player);
+
+    long get_num_players() { return players.size(); }
+
+    Player default_player;
+    static PlayerManager *pm;
+
+    static bool init();
+
+    static bool destroy();
+
+private:
+    std::vector<Player> players;
+    std::vector<Player>::iterator current_player;
+};
 
 class HexagonGrid
 {
@@ -683,7 +704,6 @@ public:
         this->texture = nullptr;
         this->panning = false;
         std::unordered_map<Field, FieldMeta *> fields = std::unordered_map<Field, FieldMeta *>();
-        this->default_player = new Player();
         // first lower half, then upper half
         Field new_field = {0, 0, 0};
         for (Sint16 x = -grid_radius; x <= grid_radius; x++)
@@ -694,11 +714,11 @@ public:
             {
                 Sint16 z = -x - y;
                 new_field = {x, y, z};
-                FieldMeta *meta = new FieldMeta(this, new_field, this->default_player);
+                FieldMeta *meta = new FieldMeta(this, new_field, PlayerManager::pm->default_player);
                 this->fields.insert({new_field, meta});
             }
         }
-        this->marker = new FieldMeta(this, new_field, this->default_player);
+        this->marker = new FieldMeta(this, new_field, PlayerManager::pm->default_player);
         this->load();
     }
 
@@ -708,46 +728,28 @@ public:
         {
             delete elem.second;
         }
-        delete this->default_player;
         SDL_DestroyTexture(this->texture);
     }
-
     FieldMeta *get_neighbor(FieldMeta *field, Uint8 direction);
-
     Cluster get_cluster(FieldMeta *field);
-
     void render(Renderer *renderer);
-
     void load();
-
     Sint16 get_radius() { return radius * layout->size; }
-
     void move(SDL_Point move);
-
     void update_marker();
-
     void update_dimensions(SDL_Point dimensions);
-
     Resource get_resources_of_cluster(Cluster *cluster);
-
     Resource consume_resources_of_cluster(Cluster *cluster, Resource costs);
-
     FieldMeta *point_to_field(const Point p);
-
     Point field_to_point(FieldMeta *field);
-
     FieldMeta *get_field(Field field);
-
     void handle_event(SDL_Event *event);
 
-    bool place(Player *player, FieldMeta *center);
-
+    bool place(Player &player, FieldMeta *center);
     void set_selecting(bool state) { this->placing = state; }
-
     FieldMeta *get_attack_marker() { return this->attack_marker; }
 
-    void surrender(Player *player);
-
+    void free(Player &player);
 private:
     bool changed;
     bool placing;
@@ -758,9 +760,7 @@ private:
     Layout *layout;
     FieldMeta *marker;
     bool panning;
-    Player *default_player;
     Sint16 radius;
-
     bool on_rectangle(SDL_Rect *rect);
 };
 

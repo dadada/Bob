@@ -146,10 +146,6 @@ void Game::handle_event(SDL_Event *event)
                 {
                     this->upgrade_box->handle_event(event);
                 }
-                for (Player *p : this->players)
-                {
-                    p->handle_event(event);
-                }
             }
             if (event->type == BOB_NEXTROUNDEVENT || event->type == BOB_FIELDUPDATEEVENT
                 || event->type == BOB_FIELDUPGRADEVENT || event->type == BOB_NEXTTURNEVENT)
@@ -157,26 +153,20 @@ void Game::handle_event(SDL_Event *event)
                 this->grid->handle_event(event);
                 this->field_box->handle_event(event);
                 this->upgrade_box->handle_event(event);
-                for (Player *p : this->players)
-                {
-                    p->handle_event(event);
-                }
             }
             else if (event->type == BOB_FIELDSELECTEDEVENT && !this->started)
             {
                 FieldMeta *field = (FieldMeta *) event->user.data1;
-                if (event->user.code == 0 && this->adding != nullptr)
+                if (event->user.code == 0 && this->adding != pm->default_player)
                 {
                     if (this->grid->place(this->adding, field))
                     {
-                        this->players.push_back(this->adding);
-                        prompt << "Added Player: " << this->adding->get_name();
-                        this->adding = nullptr;
+                        PlayerManager::pm->add_player(this->adding);
+                        prompt << "Added Player: " << this->adding.get_name();
                     }
                     else
                     {
-                        prompt << "Failed to add Player: " << this->adding->get_name();
-                        delete this->adding;
+                        prompt << "Failed to add Player: " << this->adding.get_name();
                     }
                 }
                 this->text_input_box->prompt(prompt.str());
@@ -206,7 +196,7 @@ void Game::command(std::string input)
         if (this->started)
         {
             this->next_turn();
-            prompt << "Next player is: " << (Player::current_player)->get_name();
+            prompt << "Next player is: " << PlayerManager::pm->get_current().get_name();
         }
         else
         {
@@ -215,31 +205,23 @@ void Game::command(std::string input)
     }
     else if (input == "surrender")
     {
-        this->grid->surrender(Player::current_player);
-        prompt << "Player " << Player::current_player->get_name() << " surrendered!\n";
-        for (int i = 0; i < this->players.size(); i++)
-        {
-            if (this->players[i] == Player::current_player)
-            {
-                delete this->players[i];
-                this->players.erase(this->players.begin() + i);
-            }
-        }
+        Player current = PlayerManager::pm->get_current();
+        PlayerManager::pm->surrender(current, this->grid);
+        prompt << "Player " << current.get_name() << " surrendered!\n";
         this->next_turn();
     }
     else if (input.substr(0, 10) == "add player")
     {
         if (!this->started)
         {
-            if (this->adding != nullptr)
+            if (this->adding != pm->default_player)
             {
                 this->grid->set_selecting(false);
-                prompt << "Failed to add player " << this->adding->get_name() << "!df\n";
-                delete this->adding;
+                prompt << "Failed to add player " << this->adding.get_name() << "!df\n";
             }
             this->grid->set_selecting(true);
-            this->adding = new Player(input.substr(11, std::string::npos));
-            prompt << "Select a place for " << this->adding->get_name() << ", please!";
+            this->adding = Player(input.substr(11, std::string::npos));
+            prompt << "Select a place for " << this->adding.get_name() << ", please!";
             this->text_input_box->stop();
         }
         else
@@ -249,7 +231,7 @@ void Game::command(std::string input)
     }
     else if (input == "start")
     {
-        if (this->players.size() < 2)
+        if (PlayerManager::pm->get_num_players() < 2)
         {
             prompt << "Please add at least one player, before starting the game.";
         }
@@ -269,37 +251,14 @@ void Game::command(std::string input)
 
 void Game::start()
 {
-    this->players.erase(players.begin()); // remove default player from vector
-    std::random_shuffle(players.begin(), players.end());
-    this->turn = 0;
-    Player::current_player = players[0];
-    trigger_event(BOB_NEXTROUNDEVENT, 0, nullptr, (void *) Player::current_player);
-    trigger_event(BOB_NEXTTURNEVENT, 0, nullptr, (void *) Player::current_player);
+    PlayerManager::pm->shuffle();
 }
 
 void Game::next_turn()
 {
-    if (!this->players.empty())
+    if (this->started)
     {
-        Player *last_player = Player::current_player;
-        this->turn = (this->turn + 1) % players.size();
-        Player::current_player = players[turn];
-        if (this->turn == 0)
-        {
-            trigger_event(BOB_NEXTTURNEVENT, 0, (void *) last_player, (void *) Player::current_player);
-            trigger_event(BOB_NEXTROUNDEVENT, 0, (void *) last_player, (void *) Player::current_player);
-        }
-        else
-        {
-            trigger_event(BOB_NEXTTURNEVENT, 0, (void *) last_player, (void *) Player::current_player);
-        }
-    }
-    else
-    {
-        Player *def = new Player();
-        Player::current_player = def;
-        this->players.push_back(def);
-        this->started = false;
+        pm->next_turn();
     }
 }
 
@@ -374,6 +333,7 @@ void init_ttf()
 
 int main(int, char **)
 {
+    PlayerManager::init();
     try
     {
         init_sdl(SDL_INIT_VIDEO);
@@ -387,11 +347,12 @@ int main(int, char **)
     SDL_Rect bounds;
     SDL_GetDisplayBounds(0, &bounds);
     SDL_Rect window_dimensions = {SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 600, 600};
-    Game *game = new Game(&window_dimensions, 10);
     int exit_status = 1;
+    Game *game = new Game(&window_dimensions, 10, PlayerManager::pm);
     exit_status = game->game_loop();
     delete game;
-    TTF_Quit();
     SDL_Quit();
+    PlayerManager::destroy();
+    TTF_Quit();
     return exit_status;
 }

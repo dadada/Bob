@@ -1,6 +1,6 @@
 #include "Gameplay.hpp"
 
-Player *Player::current_player = nullptr;
+PlayerManager *PlayerManager::pm = nullptr;
 
 SDL_Point operator+(SDL_Point left, SDL_Point right)
 {
@@ -232,7 +232,7 @@ Cluster HexagonGrid::get_cluster(FieldMeta *field)
         {
             FieldMeta *neighbor = this->get_neighbor(current, i);
             // neighbor is unvisited, unseen and inside same cluster
-            if (neighbor != nullptr && *(neighbor->get_owner()) == *(current->get_owner())
+            if (neighbor != nullptr && neighbor->get_owner() == current->get_owner()
                 && visited.find(neighbor) == visited.end() && seen.find(neighbor) == seen.end())
             {
                 seen.insert(neighbor); // discovered an unseen neighbor, will visit later
@@ -265,7 +265,7 @@ bool Player::fight(FieldMeta *field)
 {
     bool is_neighbor = false; // player has a field around here
     // friendly fire or owned by default player
-    if (*this == *(field->get_owner()) || field->get_owner()->get_id() == boost::uuids::nil_uuid())
+    if (*this == field->get_owner() || field->get_owner().get_id() == boost::uuids::nil_uuid())
     {
         return false;
     }
@@ -281,14 +281,14 @@ bool Player::fight(FieldMeta *field)
         {
             continue;
         }
-        if (*(neighbor->get_owner()) == *this) // comparison by UUID, attacking player
+        if (neighbor->get_owner() == *this) // comparison by UUID, attacking player
         {
             Cluster temp_attackers_cluster = neighbor->get_grid()->get_cluster(neighbor);
             attackers_cluster.insert(temp_attackers_cluster.begin(), temp_attackers_cluster.end());
             power_level -= neighbor->get_offense();
             is_neighbor = true;
         }
-        else if (*(neighbor->get_owner()) == *(field->get_owner())) // attacked player
+        else if (neighbor->get_owner() == field->get_owner()) // attacked player
         {
             power_level += neighbor->get_defense();
         }
@@ -300,7 +300,7 @@ bool Player::fight(FieldMeta *field)
     {
         field->get_grid()->consume_resources_of_cluster(&attackers_cluster, costs);
         field->get_grid()->consume_resources_of_cluster(&defenders_cluster, costs);
-        field->set_owner(this);
+        field->set_owner(*this);
         return true;
     }
     else // lost
@@ -326,7 +326,7 @@ void FieldMeta::load(SDL_Renderer *renderer, Layout *layout)
     location.x = (int) precise_location.x;
     location.y = (int) precise_location.y;
     std::vector<Point> polygon = this->field.field_to_polygon(layout);
-    SDL_Color color = this->owner->get_color();
+    SDL_Color color = this->owner.get_color();
     Sint16 vx[6];
     Sint16 vy[6];
     for (int i = 0; i < 6; i++)
@@ -334,16 +334,12 @@ void FieldMeta::load(SDL_Renderer *renderer, Layout *layout)
         vx[i] = (Sint16) polygon[i].x;
         vy[i] = (Sint16) polygon[i].y;
     }
-    if (this->owner->get_id().is_nil())
-        color = {0x77, 0x77, 0x77, 0xff};
+    if (this->owner.get_id().is_nil())
+        color = {0x22, 0x22, 0x22, 0xff};
     if (this->get_grid()->get_attack_marker() == this)
         color = {0x0, 0x77, 0x77, 0xff};
-    filledPolygonRGBA(renderer, vx, vy, 6, color.r, color.g, color.b, 0x77);
-    SDL_Color inverse;
-    inverse.r = (Uint8) (color.r + 0x77);
-    inverse.g = (Uint8) (color.g + 0x77);
-    inverse.b = (Uint8) (color.b + 0x77);
-    inverse.a = 0xff;
+    filledPolygonRGBA(renderer, vx, vy, 6, color.r, color.g, color.b, 0xff);
+    SDL_Color fg = {0xff, 0xff, 0xff, 0xff};
     double resource_size = layout->size / 4;
     if (this->resources_base.triangle > 0)
     {
@@ -355,12 +351,12 @@ void FieldMeta::load(SDL_Renderer *renderer, Layout *layout)
             vx[i] = (Sint16) (location.x + (trigon[i].x * resource_size));
             vy[i] = (Sint16) (location.y + (trigon[i].y * resource_size));
         }
-        trigonRGBA(renderer, vx[0], vy[0], vx[1], vy[1], vx[2], vy[2], inverse.r, inverse.g, inverse.b, inverse.a);
+        trigonRGBA(renderer, vx[0], vy[0], vx[1], vy[1], vx[2], vy[2], fg.r, fg.g, fg.b, fg.a);
     }
     if (this->resources_base.circle > 0)
     {
-        circleRGBA(renderer, (Sint16) (location.x), Sint16(location.y), (Sint16) resource_size, inverse.r, inverse.g,
-                   inverse.b, inverse.a);
+        circleRGBA(renderer, (Sint16) (location.x), Sint16(location.y), (Sint16) resource_size, fg.r, fg.g,
+                   fg.b, fg.a);
     }
     if (this->resources_base.square > 0)
     {
@@ -373,7 +369,7 @@ void FieldMeta::load(SDL_Renderer *renderer, Layout *layout)
             vx[i] = (Sint16) (location.x + square[i].x * resource_size);
             vy[i] = (Sint16) (location.y + square[i].y * resource_size);
         }
-        polygonRGBA(renderer, vx, vy, 4, inverse.r, inverse.g, inverse.b, inverse.a);
+        polygonRGBA(renderer, vx, vy, 4, fg.r, fg.g, fg.b, fg.a);
     }
 }
 
@@ -504,7 +500,7 @@ void HexagonGrid::handle_event(SDL_Event *event)
                     {
                         if (this->attack_marker == this->marker)
                         {
-                            Player::current_player->fight(this->attack_marker);
+                            PlayerManager::pm->get_current().fight(this->attack_marker);
                         }
                         this->attack_marker = nullptr;
                     }
@@ -526,7 +522,7 @@ void HexagonGrid::handle_event(SDL_Event *event)
                     field.second->regenerate_resources();
                 }
             }
-            else if (event->type == BOB_NEXTTURNEVENT)
+            if (event->type == BOB_NEXTTURNEVENT || event->type == BOB_NEXTROUNDEVENT)
             {
                 std::default_random_engine generator;
                 std::normal_distribution<double> distribution(0.0, 1.0);
@@ -534,13 +530,12 @@ void HexagonGrid::handle_event(SDL_Event *event)
                 for (auto pair : this->fields)
                 {
                     FieldMeta *field = pair.second;
-                    if (*(field->get_owner()) == *(Player::current_player))
+                    if (field->get_owner() == PlayerManager::pm->get_current())
                     {
                         for (Uint8 i = 0; i < 6; i++)
                         {
-
                             FieldMeta *neighbor = field->get_neighbor(i);
-                            if (neighbor != nullptr && neighbor->get_owner()->get_id() == boost::uuids::nil_uuid()
+                            if (neighbor != nullptr && neighbor->get_owner() == PlayerManager::pm->default_player
                                 && (neighbor->get_reproduction() > distribution(generator)))
                             {
                                 aquired.insert(neighbor);
@@ -550,7 +545,7 @@ void HexagonGrid::handle_event(SDL_Event *event)
                 }
                 for (auto foo : aquired)
                 {
-                    foo->set_owner(Player::current_player);
+                    foo->set_owner(PlayerManager::pm->get_current());
                     foo->set_defense(1);
                     foo->set_offense(1);
                 }
@@ -650,14 +645,14 @@ bool inside_target(const SDL_Rect *box, const SDL_Point *position)
            box->y + box->h > position->y;
 }
 
-bool HexagonGrid::place(Player *player, FieldMeta *center)
+bool HexagonGrid::place(Player &player, FieldMeta *center)
 {
     std::vector<FieldMeta *> selected;
     selected.push_back(center);
     for (Uint8 i = 0; i < 6; i++)
     {
         FieldMeta *neighbor = center->get_neighbor(i);
-        if (neighbor->get_owner()->get_id() == boost::uuids::nil_uuid())
+        if (neighbor != nullptr && neighbor->get_owner().get_id() == boost::uuids::nil_uuid())
         {
             selected.push_back(neighbor);
         }
@@ -693,17 +688,88 @@ void Player::handle_event(SDL_Event *event)
     }
 }
 
-void HexagonGrid::surrender(Player *player)
+void HexagonGrid::free(Player &player)
 {
     for (std::pair<Field, FieldMeta *> pair : this->fields)
     {
-        if (pair.second != nullptr && *(pair.second->get_owner()) == *player)
+        if (pair.second != nullptr && pair.second->get_owner() == player)
         {
             Field old_field = pair.second->get_field();
             delete pair.second;
-            this->fields.erase(pair.first);
-            FieldMeta *new_field = new FieldMeta(this, old_field, this->default_player);
+            fields.erase(old_field);
+            FieldMeta *new_field = new FieldMeta(this, old_field, PlayerManager::pm->default_player);
             this->fields.insert({old_field, new_field});
         }
+    }
+}
+
+Player &PlayerManager::get_current()
+{
+    if (players.empty())
+    {
+        return default_player;
+    }
+    else
+    {
+        return *current_player;
+    }
+}
+
+void PlayerManager::next_turn()
+{
+    current_player += 1;
+    if (current_player == players.end())
+    {
+        current_player = players.begin();
+        trigger_event(BOB_NEXTROUNDEVENT, 0, nullptr, nullptr);
+    }
+    else
+    {
+        trigger_event(BOB_NEXTTURNEVENT, 0, nullptr, nullptr);
+    }
+}
+
+void PlayerManager::shuffle()
+{
+    std::random_shuffle(players.begin(), players.end());
+    current_player = players.begin();
+    trigger_event(BOB_NEXTROUNDEVENT, 0, nullptr, nullptr);
+}
+
+void PlayerManager::add_player(Player &player)
+{
+    players.push_back(player);
+    current_player = players.begin();
+}
+
+void PlayerManager::surrender(Player &player, HexagonGrid *grid)
+{
+    grid->free(player);
+    //players.erase(std::remove(players.begin(), players.end(), player), players.end());
+}
+
+bool PlayerManager::init()
+{
+    pm = new PlayerManager();
+    if (pm)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+bool PlayerManager::destroy()
+{
+    if (pm != nullptr)
+    {
+        delete pm;
+        return true;
+    }
+    else
+    {
+        return false;
     }
 }

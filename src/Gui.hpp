@@ -82,7 +82,7 @@ public:
             : TextBox(renderer_, dimensions_, color_, font_), input("")
     {
         this->visible = false;
-        this->output << Player::current_player->get_name() << "# ";
+        this->output << PlayerManager::pm->get_current().get_name() << "# ";
         this->load();
         this->load_text(output.str());
     }
@@ -143,29 +143,6 @@ private:
     UpgradeBox *box;
     Upgrade upgrade;
     bool active; // this upgrade has been unlocked
-};
-
-class NextTurnButtonBox : public TextBox
-{
-public:
-    NextTurnButtonBox(Renderer *renderer, SDL_Rect dimensions, SDL_Color color, TTF_Font *font_,
-                      std::vector<Player *> *players_)
-            : TextBox(renderer, dimensions, color, font_), players(players_)
-    {
-        this->current_player = this->players->begin();
-        Player::current_player = *(this->current_player);
-        std::ostringstream text;
-        // Warning, next line looks ugly @.@
-        text << "NEXT TURN" << "\n\n" << (*(this->current_player))->get_name();
-        this->load_text(text.str());
-        this->visible = true;
-    }
-
-    void handle_event(const SDL_Event *event);
-
-private:
-    std::vector<Player *> *players;
-    std::vector<Player *>::iterator current_player;
 };
 
 class UpgradeBox : public Box

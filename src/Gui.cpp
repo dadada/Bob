@@ -99,7 +99,7 @@ void FieldBox::update()
     Resource cluster_resources = grid->get_resources_of_cluster(&cluster);
     Resource field_resources = this->field->get_resources();
     std::ostringstream output;
-    output << this->field->get_owner()->get_name() << "\n"
+    output << this->field->get_owner().get_name() << "\n"
     << "off " << this->field->get_offense() << "\ndef " << this->field->get_defense() << "\n"
     << "● " << (int) cluster_resources.circle << " (" << (int) field_resources.circle << ")" << "\n"
     << "▲ " << (int) cluster_resources.triangle << " (" << (int) field_resources.triangle << ")" << "\n"
@@ -210,7 +210,7 @@ void UpgradeButtonBox::handle_event(const SDL_Event *event)
         if (inside_target(&(this->dimensions), &pos))
         {
             FieldMeta *field = this->box->get_field();
-            if (*(Player::current_player) == *(field->get_owner()))
+            if (PlayerManager::pm->get_current() == field->get_owner())
             {
                 field->upgrade(this->upgrade);
                 changed = true;
@@ -301,34 +301,6 @@ void FieldBox::update_position(SDL_Point point)
     this->dimensions.y = point.y - this->dimensions.h - 6;
 }
 
-void NextTurnButtonBox::handle_event(const SDL_Event *event)
-{
-    if (event->type == SDL_MOUSEBUTTONDOWN)
-    {
-        SDL_Point mouse;
-        SDL_GetMouseState(&(mouse.x), &(mouse.y));
-        if (inside_target(&(this->dimensions), &mouse))
-        {
-            Player *last_player = Player::current_player;
-            this->current_player = this->current_player + 1;
-            if (this->current_player == players->end())
-            {
-                this->current_player = players->begin();
-                trigger_event(BOB_NEXTROUNDEVENT, 0, last_player, Player::current_player);
-            }
-            else
-            {
-                trigger_event(BOB_NEXTTURNEVENT, 0, last_player, Player::current_player);
-            }
-            Player::current_player = *(this->current_player);
-            std::ostringstream text;
-            text << "NEXT TURN" << "\n\n" << Player::current_player->get_name();
-            this->load_text(text.str());
-            this->changed = true;
-        }
-    }
-}
-
 void TextInputBox::start()
 {
     this->visible = true;
@@ -397,7 +369,7 @@ void TextInputBox::handle_event(const SDL_Event *event)
 
 void TextInputBox::prompt(std::string message)
 {
-    this->output << this->input.str() << "\n" << message << "\n" << Player::current_player->get_name() << "# ";
+    this->output << this->input.str() << "\n" << message << "\n" << PlayerManager::pm->get_current().get_name() << "# ";
     this->lines += 2;
     this->load_text(output.str());
     if (lines > 20)
